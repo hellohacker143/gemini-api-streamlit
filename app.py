@@ -36,7 +36,6 @@ if st.button("Generate 15-Marks Answer"):
 Generate a perfect 15-marks university exam answer on the topic: "{topic}" in topper-writing style.
 
 Follow this structure:
-
 1. Introduction (4–5 bullet points)
 2. Definition (4–5 bullet points)
 3. Neat Diagram (text-based) — {diagram_text}
@@ -48,13 +47,11 @@ Follow this structure:
 9. Strong conclusion
 
 Important:
-- Do NOT display section names like "Introduction", "Definition", etc.
-- Only output the content in that order.
-- All headings must be small and clear.
-- Headings must be in BLUE color.
-- Content must be in BLACK color.
-- Answer must be exam-oriented and clean.
-- Do NOT mention line count or structure in output.
+- Do NOT show section names.
+- Headings must be BLUE.
+- Body text must be BLACK.
+- Output must be clean, structured, exam-oriented.
+- Never show ** or * anywhere.
 """
 
                 client = genai.Client(api_key=api_key)
@@ -63,7 +60,9 @@ Important:
                     contents=prompt
                 )
 
-                answer = response.text.replace("\n", "<br>")
+                # ---------- REMOVE ALL STARS ---------- #
+                clean = response.text.replace("**", "").replace("*", "")
+                clean = clean.replace("\n", "<br>")
 
                 # ---------------- EXAM PAPER CSS ---------------- #
                 exam_css = """
@@ -72,7 +71,7 @@ Important:
                     background: repeating-linear-gradient(
                         white,
                         white 38px,
-                        #e8e8e8 40px
+                        black 40px
                     );
                     padding: 35px;
                     padding-left: 60px;
@@ -84,19 +83,20 @@ Important:
                     height: 1200px;
                     overflow-y: auto;
                 }
-                .blue-head { color: #0055ff; font-weight: 700; }
+                .blue-head { color: #0055ff; font-weight: 700; font-size: 20px; }
                 .black-text { color: black; }
                 </style>
                 """
 
-                # Auto detect headings = lines ending with ":" or bold-like text
+                # Auto-detect headings
                 def colorize(text):
                     formatted = ""
                     for line in text.split("<br>"):
                         if len(line.strip()) < 2:
                             formatted += "<br>"
                             continue
-                        # Detect heading by trailing ":" or short length or title-like
+
+                        # heading detection
                         if line.strip().endswith(":") or len(line) < 35:
                             formatted += f"<span class='blue-head'>{line}</span><br>"
                         else:
@@ -105,7 +105,7 @@ Important:
 
                 final_html = exam_css + f"""
                 <div class="exam-paper">
-                    {colorize(answer)}
+                    {colorize(clean)}
                 </div>
                 """
 
