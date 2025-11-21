@@ -28,7 +28,7 @@ if st.button("Generate 15-Marks Answer"):
     else:
         with st.spinner("Writing answer on real exam booklet…"):
             try:
-                # Diagram ON/OFF
+                # Diagram ON/OFF text
                 diagram_text = "Include a neat text diagram." if show_diagram else "Do NOT include any diagram."
 
                 # Prompt for AI
@@ -39,7 +39,7 @@ Follow this order strictly:
 - Introduction (4–5 points)
 - Definition (4–5 points)
 - Diagram: {diagram_text}
-- Six Key Points (heading + 2–3 lines explanation)
+- Six Key Points (heading + 2–3 lines explanation each)
 - Features
 - Advantages
 - Characteristics
@@ -62,8 +62,9 @@ Rules:
                 )
 
                 # -------- CLEAN RESPONSE -------- #
-                clean = response.text.replace("**", "").replace("*", "")
-                clean = clean.replace("\n", "<br>")
+                clean = response.text
+                clean = clean.replace("**", "").replace("*", "")  # remove all stars
+                clean = clean.replace("\n", "<br>")  # line breaks
 
                 # -------- BOOKLET CSS (PERFECT REAL LOOK) -------- #
                 booklet_css = """
@@ -94,7 +95,7 @@ Rules:
                 </style>
                 """
 
-                # -------- AUTO COLOR LOGIC -------- #
+                # -------- AUTO COLOR LOGIC (FIRST heading blue, rest black) -------- #
                 applied_first_heading = False
 
                 def colorize(text):
@@ -107,17 +108,18 @@ Rules:
                             output += "<br>"
                             continue
 
-                        # FIRST heading (TOP) must be BLUE
+                        # FIRST heading = BLUE
                         if not applied_first_heading:
                             output += f"<span class='blue-head'>{line}</span><br>"
                             applied_first_heading = True
                             continue
 
-                        # All remaining text BLACK
+                        # All remaining = BLACK
                         output += f"<span class='black-text'>{line}</span><br>"
 
                     return output
 
+                # -------- FINAL HTML -------- #
                 final_html = booklet_css + f"""
                 <div class="booklet">
                     {colorize(clean)}
