@@ -4,6 +4,7 @@ from fpdf import FPDF
 import base64
 from PIL import Image
 import io
+import PyPDF2
 
 # ----------------------------------
 # Page Configuration
@@ -15,7 +16,7 @@ st.set_page_config(
 )
 
 # ----------------------------------
-# Session State Initialization
+# Session State Initialization  
 # ----------------------------------
 if "notes" not in st.session_state:
     st.session_state.notes = []
@@ -25,6 +26,12 @@ if "selected_topic" not in st.session_state:
 
 if "uploaded_image" not in st.session_state:
     st.session_state.uploaded_image = None
+    
+if "image_text" not in st.session_state:
+    st.session_state.image_text = None
+
+if "syllabus_content" not in st.session_state:
+    st.session_state.syllabus_content = None
 
 if "subjects" not in st.session_state:
     st.session_state.subjects = {
@@ -47,7 +54,7 @@ if "subjects" not in st.session_state:
         ]
     }
 
-# ----------------------------------
+# ----------------------------------  
 # Sidebar – API Key + Notes Book
 # ----------------------------------
 with st.sidebar:
@@ -64,6 +71,10 @@ with st.sidebar:
                 # Display image if exists
                 if note.get("image"):
                     st.image(note["image"], caption=f"Image for {note['topic']}", use_container_width=True)
+                
+                # Display image text if exists
+                if note.get("image_text"):
+                    st.info(f"📝 Text from image: {note['image_text']}")
                 
                 # Display answer
                 st.markdown(note["answer"], unsafe_allow_html=True)
@@ -101,11 +112,29 @@ with st.sidebar:
 # Title
 # ----------------------------------
 st.title("📝 15-Marks Exam Answer Generator")
-st.markdown("Generate topper-level exam answers with styled headings, image support, and notes saving.")
+st.markdown("Generate topper-level exam answers with image support, text extraction, and syllabus upload.")
+
+# ----------------------------------
+# Syllabus Upload Section
+# ----------------------------------
+with st.expander("📚 Upload Syllabus (Optional)", expanded=False):
+    syllabus_file = st.file_uploader("Upload syllabus PDF", type=["pdf"])
+    if syllabus_file and api_key:
+        if st.button("🔍 Extract Syllabus Content"):
+            with st.spinner("Extracting syllabus..."):
+                # Read PDF
+                pdf_reader = PyPDF2.PdfReader(syllabus_file)
+                syllabus_text = ""
+                for page in pdf_reader.pages:
+                    syllabus_text += page.extract_text()
+                
+                st.session_state.syllabus_content = syllabus_text
+                st.success("✅ Syllabus extracted successfully!")
+                st.text_area("Syllabus Content", syllabus_text, height=200)
 
 # ----------------------------------
 # Subject Dropdown
-# ----------------------------------
+# ----------------------------------  
 st.subheader("📚 Select Subject")
 selected_subject = st.selectbox("Choose Subject:", list(st.session_state.subjects.keys()))
 
@@ -147,7 +176,7 @@ for i, topic in enumerate(filtered_topics):
 # Answer Generation Section
 # ----------------------------------
 if st.session_state.selected_topic:
-    topic = st.session_state.selected_topic
+    topic = st.session_state.selected_topic  
     st.markdown("---")
     st.subheader(f"📝 Selected Topic: **{topic}**")
     
@@ -155,10 +184,36 @@ if st.session_state.selected_topic:
     st.markdown("#### 📷 Upload Image (Optional)")
     uploaded_file = st.file_uploader("Upload an image related to the topic", type=["png", "jpg", "jpeg"])
     
+    # Text input below image
     if uploaded_file:
         image = Image.open(uploaded_file)
         st.image(image, caption="Uploaded Image", use_container_width=True)
         st.session_state.uploaded_image = uploaded_file
+        
+        # Extract text from image
+        if api_key and st.button("🔍 Extract Text from Image"):
+            with st.spinner("Extracting text..."):
+                client = genai.Client(api_key=api_key)
+                uploaded_file.seek(0)
+                image_bytes = uploaded_file.read()
+                
+                resp = client.models.generate_content(
+                    model="gemini-2.0-flash-exp",
+                    contents=[
+                        {"image": {"data": base64.b64encode(image_bytes).decode('utf-8')}},
+                        "Extract and return all text visible in this image. Return ONLY the extracted text, nothing else."
+                    ]
+                )
+                st.session_state.image_text = resp.text
+                st.success("✅ Text extracted!")
+        
+        # Show extracted text in text area
+        if st.session_state.image_text:
+            image_text_input = st.text_area("📝 Text below image:", value=st.session_state.image_text, height=150)
+        else:
+            image_text_input = st.text_area("📝 Add text below image (optional):", height=150)
+    else:
+        image_text_input = None
     
     # --- TEMPLATE: 3-marks preview ---
     preview_template = f"""
@@ -166,10 +221,32 @@ if st.session_state.selected_topic:
     with exam-oriented simple explanation.
     """
     
+    # --- TEMPLATE: 5-marks answer ---
+    context_info = ""
+    if uploaded_file and image_text_input:
+        context_info = f"\nImage context: {image_text_input}"
+    if st.session_state.syllabus_content:
+        context_info += f"\nSyllabus context: {st.session_state.syllabus_content[:500]}"
+    
+    marks_5_template = f"""
+    Generate a perfect 5-marks university exam answer on the topic: "{topic}" in topper-writing style.
+    {context_info}
+    
+    Use HTML headings like:
+    <span style='color:red; text-decoration: underline;'><b>Heading</b></span>
+    
+    Structure:
+    • Introduction (2-3 bullets)
+    • Definition (clear)
+    • 3 Key Points (numbered with brief explanation)
+    • Conclusion
+    """
+    
     # --- TEMPLATE: 15-marks full answer ---
     if uploaded_file:
         full_template = f"""
-        Based on the uploaded image and the topic: "{topic}", generate a perfect 15-marks university exam answer in topper-writing style.
+        Based on the uploaded image{' and text: "' + image_text_input + '"' if image_text_input else ''} and the topic: "{topic}", generate a perfect 15-marks university exam answer in topper-writing style.
+        {context_info}
         
         Analyze the image first, then create a comprehensive answer.
         
@@ -190,6 +267,7 @@ if st.session_state.selected_topic:
     else:
         full_template = f"""
         Generate a perfect 15-marks university exam answer on the topic: "{topic}" in topper-writing style.
+        {context_info}
         
         Use HTML headings like:
         <span style='color:red; text-decoration: underline;'><b>Heading</b></span>
@@ -207,7 +285,8 @@ if st.session_state.selected_topic:
         """
     
     # Generate Preview (3 marks)
-    col1, col2 = st.columns(2)
+    col1, col2, col3 = st.columns(3)
+    
     with col1:
         if st.button("✨ Generate 3-Marks Preview", use_container_width=True):
             if not api_key:
@@ -223,9 +302,59 @@ if st.session_state.selected_topic:
                     st.markdown("### 🟩 3-Marks Preview")
                     st.write(preview_answer)
     
-    # Generate Full 15 marks Answer
+    # Generate 5-marks Answer
     with col2:
-        if st.button("🏆 Generate Full 15-Marks Answer", use_container_width=True):
+        if st.button("📚 Generate 5-Marks Answer", use_container_width=True):
+            if not api_key:
+                st.error("⚠️ Please enter API Key")
+            else:
+                with st.spinner("Generating 5-marks answer..."):
+                    client = genai.Client(api_key=api_key)
+                    
+                    # If image uploaded, include it
+                    if uploaded_file:
+                        uploaded_file.seek(0)
+                        image_bytes = uploaded_file.read()
+                        
+                        resp = client.models.generate_content(
+                            model="gemini-2.0-flash-exp",
+                            contents=[
+                                {"image": {"data": base64.b64encode(image_bytes).decode('utf-8')}},
+                                marks_5_template
+                            ]
+                        )
+                    else:
+                        resp = client.models.generate_content(
+                            model="gemini-2.0-flash-exp",
+                            contents=marks_5_template
+                        )
+                    
+                    marks_5_answer = resp.text
+                    st.markdown("### 🟨 5-Marks Answer")
+                    st.markdown(marks_5_answer, unsafe_allow_html=True)
+                    
+                    # Add to Book button
+                    if st.button("📌 Add 5-Marks to Book", key="add_5"):
+                        note_data = {
+                            "topic": f"{topic} (5-Marks)",
+                            "answer": marks_5_answer,
+                            "plain_text": resp.text
+                        }
+                        
+                        if uploaded_file:
+                            uploaded_file.seek(0)
+                            note_data["image"] = Image.open(uploaded_file)
+                        if image_text_input:
+                            note_data["image_text"] = image_text_input
+                        
+                        st.session_state.notes.append(note_data)
+                        st.success("✅ Added to Notes Book!")
+                        st.balloons()
+                        st.rerun()
+    
+    # Generate Full 15 marks Answer
+    with col3:
+        if st.button("🏆 Generate 15-Marks Answer", use_container_width=True):
             if not api_key:
                 st.error("⚠️ Enter Gemini API Key!")
             else:
@@ -255,9 +384,9 @@ if st.session_state.selected_topic:
                     st.markdown(full_answer, unsafe_allow_html=True)
                     
                     # Add to Book button
-                    if st.button("📌 Add to Notes Book"):
+                    if st.button("📌 Add 15-Marks to Book", key="add_15"):
                         note_data = {
-                            "topic": topic,
+                            "topic": f"{topic} (15-Marks)",
                             "answer": full_answer,
                             "plain_text": resp.text
                         }
@@ -266,6 +395,8 @@ if st.session_state.selected_topic:
                         if uploaded_file:
                             uploaded_file.seek(0)
                             note_data["image"] = Image.open(uploaded_file)
+                        if image_text_input:
+                            note_data["image_text"] = image_text_input
                         
                         st.session_state.notes.append(note_data)
                         st.success("✅ Added to Notes Book!")
