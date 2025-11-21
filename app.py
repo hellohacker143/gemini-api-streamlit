@@ -11,7 +11,7 @@ st.set_page_config(
 )
 
 st.title("📝 15-Marks Exam Answer Generator")
-st.markdown("Generate topper-quality university exam answers using Gemini AI.")
+st.markdown("Generate topper-quality university exam answers using Gemini AI with styled headings.")
 
 # -------------------------
 #  Sidebar – API Key
@@ -45,26 +45,50 @@ subjects = {
 }
 
 # -------------------------
-#  UPDATED Prompt Template (Fixed Key Points + Conclusion)
+#  NEW Prompt Template (Red + Underline Headings)
 # -------------------------
 exam_template = """
 Generate a perfect 15-marks university exam answer on the topic: “{TOPIC}” in topper-writing style.
 
-Structure:
-Introduction (4–5 bullet points)
-Definition (4–5 bullet points)
-Neat Diagram (text-based block diagram)
-Directly give 6 Key Points using numbered format. DO NOT write “6 Key Points:” as a section title.
-Each key point must contain:
-• A heading
-• A 2–3 line explanation
-Features (4–5 bullet points)
-Advantages (4–5 bullet points)
-Characteristics (4–5 bullet points)
-Applications / Real-world uses
-Conclusion (Write a strong, exam-oriented final paragraph with a clear closing statement)
+Formatting Rules (VERY IMPORTANT):
+• Every heading must be RED and UNDERLINED.
+• Use EXACT HTML style:
+  <span style='color:red; text-decoration: underline;'><b>HEADING HERE</b></span>
 
-Write clean, structured, and exam-oriented content. Do NOT mention number of lines.
+Structure:
+
+<span style='color:red; text-decoration: underline;'><b>Introduction</b></span>
+(4–5 bullet points)
+
+<span style='color:red; text-decoration: underline;'><b>Definition</b></span>
+(4–5 bullet points)
+
+<span style='color:red; text-decoration: underline;'><b>Neat Diagram</b></span>
+(Text-based block diagram)
+
+Now list 6 key points using numbers.
+For each key point:
+1. Use this heading format:
+   <span style='color:red; text-decoration: underline;'><b>Heading</b></span>
+2. Give 2–3 line explanation.
+
+<span style='color:red; text-decoration: underline;'><b>Features</b></span>
+(4–5 bullet points)
+
+<span style='color:red; text-decoration: underline;'><b>Advantages</b></span>
+(4–5 bullet points)
+
+<span style='color:red; text-decoration: underline;'><b>Characteristics</b></span>
+(4–5 bullet points)
+
+<span style='color:red; text-decoration: underline;'><b>Applications</b></span>
+Real-world uses
+
+<span style='color:red; text-decoration: underline;'><b>Conclusion</b></span>
+Write a strong, exam-oriented final paragraph with a proper ending.
+
+Write clean, structured, and exam-ready content. 
+Do NOT mention number of lines.
 """
 
 # -------------------------
@@ -133,7 +157,9 @@ if "selected_topic" in st.session_state:
 
                 answer = response.text
                 st.success("Answer generated successfully!")
-                st.markdown(answer)
+
+                # ALLOW HTML RENDERING FOR RED UNDERLINED HEADINGS
+                st.markdown(answer, unsafe_allow_html=True)
 
             except Exception as e:
                 st.error(f"Error: {str(e)}")
