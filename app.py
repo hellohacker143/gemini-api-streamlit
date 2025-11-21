@@ -5,16 +5,16 @@ from google import genai
 # Page Configuration
 # ---------------------------------------------------
 st.set_page_config(
-    page_title="15-Marks Exam Answer Generator",
+    page_title="15-Marks Multi-Topic Answer Generator",
     page_icon="📝",
     layout="centered"
 )
 
 # ---------------------------------------------------
-# Title Section
+# Title and Description
 # ---------------------------------------------------
-st.title("📝 15-Marks Exam Answer Generator Chatbot")
-st.markdown("Generate topper-quality university exam answers using Google's Gemini AI.")
+st.title("📝 Multi-Topic 15-Marks Answer Generator")
+st.markdown("Enter multiple topics and get separate topper-quality answers for each.")
 
 # ---------------------------------------------------
 # Sidebar – API Key
@@ -27,23 +27,12 @@ with st.sidebar:
         help="Get your API key from https://aistudio.google.com/apikey"
     )
     st.markdown("---")
-    st.markdown("### About This App")
-    st.write("This chatbot generates structured 15-marks exam answers with neat diagrams and headings.")
-    st.markdown("[Get Gemini API Key](https://aistudio.google.com/apikey)")
+    st.markdown("### About")
+    st.write("This app generates 15-marks answers for multiple topics individually.")
+    st.markdown("[Get API Key](https://aistudio.google.com/apikey)")
 
 # ---------------------------------------------------
-# Initialize Chat History
-# ---------------------------------------------------
-if "messages" not in st.session_state:
-    st.session_state.messages = []
-
-# Display Chat History
-for message in st.session_state.messages:
-    with st.chat_message(message["role"]):
-        st.markdown(message["content"])
-
-# ---------------------------------------------------
-# 15-Marks Exam Prompt Template
+# Exam Prompt Template
 # ---------------------------------------------------
 exam_prompt_template = """
 Generate a perfect 15-marks university exam answer on the topic: “{TOPIC}” in topper-writing style.
@@ -65,51 +54,47 @@ Generate the answer directly.
 """
 
 # ---------------------------------------------------
-# User Input (Chat Box)
+# Multi-Topic Text Box
 # ---------------------------------------------------
-if topic := st.chat_input("Enter your topic for the 15-marks answer..."):
+topics_text = st.text_area(
+    "Enter multiple topics (one per line):",
+    placeholder="Example:\nRank of a Matrix\nGauss Elimination Method\nGauss-Seidel Method"
+)
+
+generate_btn = st.button("Generate Answers")
+
+# ---------------------------------------------------
+# Generate Answers
+# ---------------------------------------------------
+if generate_btn:
     if not api_key:
-        st.error("⚠️ Please enter your Gemini API key in the sidebar first!")
+        st.error("⚠️ Please enter your Gemini API Key in the sidebar!")
+    elif not topics_text.strip():
+        st.error("⚠️ Please enter at least one topic!")
     else:
+        topics = [t.strip() for t in topics_text.split("\n") if t.strip()]
 
-        # Insert topic into the exam template
-        final_prompt = exam_prompt_template.replace("{TOPIC}", topic)
+        client = genai.Client(api_key=api_key)
 
-        # Add user message to session
-        st.session_state.messages.append({"role": "user", "content": topic})
-        with st.chat_message("user"):
-            st.markdown(topic)
+        st.markdown("---")
+        st.subheader("📘 Generated 15-Marks Answers")
 
-        # AI Response
-        with st.chat_message("assistant"):
-            with st.spinner("Generating topper-style answer..."):
+        for i, topic in enumerate(topics, start=1):
+
+            st.markdown(f"## 🎯 **Answer {i}: {topic}**")
+            st.markdown("---")
+
+            final_prompt = exam_prompt_template.replace("{TOPIC}", topic)
+
+            with st.spinner(f"Generating answer for: {topic} ..."):
                 try:
-                    # Initialize Gemini Client
-                    client = genai.Client(api_key=api_key)
-
-                    # Generate Response
                     response = client.models.generate_content(
                         model="gemini-2.0-flash",
                         contents=final_prompt
                     )
-
-                    # Display AI Output
-                    bot_reply = response.text
-                    st.markdown(bot_reply)
-
-                    # Save to chat history
-                    st.session_state.messages.append(
-                        {"role": "assistant", "content": bot_reply}
-                    )
+                    st.markdown(response.text)
 
                 except Exception as e:
                     st.error(f"❌ Error: {str(e)}")
-                    st.info("Check your API key and internet connection.")
 
-# ---------------------------------------------------
-# Clear Chat Button
-# ---------------------------------------------------
-with st.sidebar:
-    if st.button("🗑️ Clear Chat"):
-        st.session_state.messages = []
-        st.rerun()
+            st.markdown("---")
