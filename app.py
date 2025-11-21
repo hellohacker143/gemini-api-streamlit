@@ -1,172 +1,207 @@
 import streamlit as st
 from google import genai
+from fpdf import FPDF
 
-# -------------------------
-#  Page Configuration
-# -------------------------
+# ----------------------------------
+# Page Configuration
+# ----------------------------------
 st.set_page_config(
     page_title="15-Marks Answer Generator",
     page_icon="📝",
-    layout="centered"
+    layout="wide"
 )
 
-st.title("📝 15-Marks Exam Answer Generator")
-st.markdown("Generate topper-quality university exam answers using Gemini AI with styled headings.")
+# ----------------------------------
+# Session State Initialization
+# ----------------------------------
+if "notes" not in st.session_state:
+    st.session_state.notes = []
 
-# -------------------------
-#  Sidebar – API Key
-# -------------------------
+if "selected_topic" not in st.session_state:
+    st.session_state.selected_topic = None
+
+if "subjects" not in st.session_state:
+    st.session_state.subjects = {
+        "Computer Networks (CN)": [
+            "OSI Model", "TCP/IP Model", "Routing Algorithms", "Network Security",
+            "Subnetting", "Switching Techniques", "Transport Layer",
+            "IP Addressing", "Wireless Networks", "Application Layer Protocols"
+        ],
+        "Operating Systems (OS)": [
+            "Process Synchronization", "Deadlocks", "CPU Scheduling",
+            "Memory Management", "Paging and Segmentation", "File System",
+            "Virtual Memory", "Threads & Multithreading", "Disk Scheduling",
+            "System Calls"
+        ],
+        "Machine Learning (ML)": [
+            "Linear Regression", "Logistic Regression", "Decision Trees",
+            "K-Nearest Neighbors (KNN)", "Naive Bayes", "Support Vector Machines (SVM)",
+            "Neural Networks", "K-Means Clustering", "Overfitting & Underfitting",
+            "Train-Test Split"
+        ]
+    }
+
+# ----------------------------------
+# Sidebar – API Key + Notes Book
+# ----------------------------------
 with st.sidebar:
     st.header("⚙️ Configuration")
     api_key = st.text_input("Enter Gemini API Key", type="password")
     st.markdown("---")
-    st.caption("Get API Key → https://aistudio.google.com/apikey")
 
-# -------------------------
-#  Subject Topics
-# -------------------------
-subjects = {
-    "Computer Networks (CN)": [
-        "OSI Model", "TCP/IP Model", "Routing Algorithms", "Network Security",
-        "Subnetting", "Switching Techniques", "Transport Layer", "IP Addressing",
-        "Wireless Networks", "Application Layer Protocols"
-    ],
-    "Operating Systems (OS)": [
-        "Process Synchronization", "Deadlocks", "CPU Scheduling", "Memory Management",
-        "Paging and Segmentation", "File System", "Virtual Memory",
-        "Threads & Multithreading", "Disk Scheduling", "System Calls"
-    ],
-    "Machine Learning (ML)": [
-        "Linear Regression", "Logistic Regression", "Decision Trees",
-        "K-Nearest Neighbors (KNN)", "Naive Bayes", "Support Vector Machines (SVM)",
-        "Neural Networks", "K-Means Clustering", "Overfitting & Underfitting",
-        "Train-Test Split"
-    ]
-}
+    st.header("📖 Notes Book")
+    st.write(f"Total Saved Notes: **{len(st.session_state.notes)}**")
 
-# -------------------------
-#  NEW Prompt Template (Red + Underline Headings)
-# -------------------------
-exam_template = """
-Generate a perfect 15-marks university exam answer on the topic: “{TOPIC}” in topper-writing style.
+    for i, note in enumerate(st.session_state.notes):
+        with st.expander(f"📌 {note['topic']}"):
+            st.markdown(note["answer"], unsafe_allow_html=True)
+            if st.button(f"Delete Note {i+1}", key=f"del_{i}"):
+                st.session_state.notes.pop(i)
+                st.rerun()
 
-Formatting Rules (VERY IMPORTANT):
-• Every heading must be RED and UNDERLINED.
-• Use EXACT HTML style:
-  <span style='color:red; text-decoration: underline;'><b>HEADING HERE</b></span>
+    st.markdown("---")
 
-Structure:
+    # PDF Download Button
+    if st.session_state.notes:
+        if st.button("⬇️ Download Notes as PDF"):
+            pdf = FPDF()
+            pdf.add_page()
+            pdf.set_auto_page_break(auto=True, margin=15)
 
-<span style='color:red; text-decoration: underline;'><b>Introduction</b></span>
-(4–5 bullet points)
+            # HTML-styled headings → simulate red underline
+            for note in st.session_state.notes:
+                pdf.set_font("Arial", "B", 16)
+                pdf.set_text_color(255, 0, 0)
+                pdf.cell(0, 10, note["topic"], ln=True)
 
-<span style='color:red; text-decoration: underline;'><b>Definition</b></span>
-(4–5 bullet points)
+                pdf.set_text_color(0, 0, 0)
+                pdf.set_font("Arial", size=12)
+                pdf.multi_cell(0, 8, note["plain_text"])
+                pdf.ln(5)
 
-<span style='color:red; text-decoration: underline;'><b>Neat Diagram</b></span>
-(Text-based block diagram)
+            pdf.output("NotesBook.pdf")
+            with open("NotesBook.pdf", "rb") as file:
+                st.download_button("Download PDF", file, file_name="NotesBook.pdf")
 
-Now list 6 key points using numbers.
-For each key point:
-1. Use this heading format:
-   <span style='color:red; text-decoration: underline;'><b>Heading</b></span>
-2. Give 2–3 line explanation.
+# ----------------------------------
+# Title
+# ----------------------------------
+st.title("📝 15-Marks Exam Answer Generator")
+st.markdown("Generate topper-level exam answers with styled headings and notes saving.")
 
-<span style='color:red; text-decoration: underline;'><b>Features</b></span>
-(4–5 bullet points)
-
-<span style='color:red; text-decoration: underline;'><b>Advantages</b></span>
-(4–5 bullet points)
-
-<span style='color:red; text-decoration: underline;'><b>Characteristics</b></span>
-(4–5 bullet points)
-
-<span style='color:red; text-decoration: underline;'><b>Applications</b></span>
-Real-world uses
-
-<span style='color:red; text-decoration: underline;'><b>Conclusion</b></span>
-Write a strong, exam-oriented final paragraph with a proper ending.
-
-Write clean, structured, and exam-ready content. 
-Do NOT mention number of lines.
-"""
-
-# -------------------------
-#  SUBJECT DROPDOWN
-# -------------------------
+# ----------------------------------
+# Subject Dropdown
+# ----------------------------------
 st.subheader("📚 Select Subject")
-selected_subject = st.selectbox("Choose a subject:", list(subjects.keys()))
+selected_subject = st.selectbox("Choose Subject:", list(st.session_state.subjects.keys()))
 
-if selected_subject:
-    st.success(f"Showing trending topics for **{selected_subject}**")
+# ----------------------------------
+# Add New Topic Section
+# ----------------------------------
+st.subheader("➕ Add New Topic")
+new_topic = st.text_input("Enter a new topic:")
+if st.button("Add Topic"):
+    if new_topic.strip():
+        st.session_state.subjects[selected_subject].append(new_topic.strip())
+        st.success(f"Topic '{new_topic}' added under {selected_subject}")
+        st.rerun()
 
-    trending = subjects[selected_subject]
+# ----------------------------------
+# Search Topic
+# ----------------------------------
+st.subheader("🔍 Search Topic")
+search_query = st.text_input("Search topics...")
 
-    # -------------------------
-    #  Search Bar
-    # -------------------------
-    st.subheader("🔍 Search Topic")
-    search_query = st.text_input("Search topics...")
+trending = st.session_state.subjects[selected_subject]
+filtered_topics = [t for t in trending if search_query.lower() in t.lower()] if search_query else trending
 
-    # Filter search results
-    if search_query:
-        filtered_topics = [t for t in trending if search_query.lower() in t.lower()]
-    else:
-        filtered_topics = trending
+# ----------------------------------
+# Display Topics (Grid)
+# ----------------------------------
+st.subheader("🔥 Topics")
+cols = st.columns(3)
+for i, topic in enumerate(filtered_topics):
+    with cols[i % 3]:
+        if st.button(topic):
+            st.session_state.selected_topic = topic
 
-    # -------------------------
-    #  Trending Topics Grid (3 per row)
-    # -------------------------
-    st.subheader("🔥 Trending Topics")
+# ----------------------------------
+# Answer Generation Section
+# ----------------------------------
+if st.session_state.selected_topic:
+    topic = st.session_state.selected_topic
+    st.subheader(f"📝 Selected Topic: **{topic}**")
 
-    cols = st.columns(3)
-    i = 0
-    for topic in filtered_topics:
-        with cols[i % 3]:
-            if st.button(topic):
-                st.session_state["selected_topic"] = topic
-        i += 1
+    # --- TEMPLATE: 3-marks preview ---
+    preview_template = f"""
+    Give a short 3-marks answer on the topic: {topic}
+    with exam-oriented simple explanation.
+    """
 
-    # -------------------------
-    #  Suggested Topics
-    # -------------------------
-    st.subheader("💡 Suggested Topics")
-    suggestions = filtered_topics[:5]
-    st.write(", ".join(suggestions))
+    # --- TEMPLATE: 15-marks full answer ---
+    full_template = """
+    Generate a perfect 15-marks university exam answer on the topic: “{TOPIC}” in topper-writing style.
 
-# -------------------------
-#  GENERATE ANSWER SECTION
-# -------------------------
-if "selected_topic" in st.session_state:
-    selected_topic = st.session_state["selected_topic"]
-    st.subheader(f"📝 Generate Answer for: **{selected_topic}**")
+    Use HTML headings like:
+    <span style='color:red; text-decoration: underline;'><b>Heading</b></span>
 
-    if st.button("Generate 15-Marks Answer"):
+    Structure:
+    • Introduction (bullets)
+    • Definition (bullets)
+    • Neat Diagram (text)
+    • 6 Key Points (numbered + explanation)
+    • Features
+    • Advantages
+    • Characteristics
+    • Applications
+    • Conclusion
+    """.replace("{TOPIC}", topic)
+
+    # Generate Preview (3 marks)
+    if st.button("✨ Generate 3-Marks Preview"):
         if not api_key:
-            st.error("Please enter your Gemini API Key!")
+            st.error("Please enter API Key")
         else:
-            try:
-                client = genai.Client(api_key=api_key)
-                final_prompt = exam_template.replace("{TOPIC}", selected_topic)
+            client = genai.Client(api_key=api_key)
+            resp = client.models.generate_content(
+                model="gemini-2.0-flash",
+                contents=preview_template
+            )
+            preview_answer = resp.text
+            st.markdown("### 🟩 3-Marks Preview")
+            st.write(preview_answer)
 
-                with st.spinner("Generating topper-quality answer..."):
-                    response = client.models.generate_content(
-                        model="gemini-2.0-flash",
-                        contents=final_prompt
-                    )
+    # Generate Full 15 marks Answer
+    if st.button("🏆 Generate Full 15-Marks Answer"):
+        if not api_key:
+            st.error("Enter Gemini API Key!")
+        else:
+            client = genai.Client(api_key=api_key)
+            resp = client.models.generate_content(
+                model="gemini-2.0-flash",
+                contents=full_template
+            )
+            full_answer = resp.text
 
-                answer = response.text
-                st.success("Answer generated successfully!")
+            st.markdown("### 🟥 15-Marks Answer")
+            st.markdown(full_answer, unsafe_allow_html=True)
 
-                # ALLOW HTML RENDERING FOR RED UNDERLINED HEADINGS
-                st.markdown(answer, unsafe_allow_html=True)
+            # Save plain text for PDF
+            plain = st.session_state.get("plain_text", "")
 
-            except Exception as e:
-                st.error(f"Error: {str(e)}")
+            # Add to Book button
+            if st.button("📌 Add to Book"):
+                st.session_state.notes.append({
+                    "topic": topic,
+                    "answer": full_answer,
+                    "plain_text": resp.text
+                })
+                st.success("Added to Notes Book!")
+                st.rerun()
 
-# -------------------------
-# Clear Selection
-# -------------------------
-if st.button("🔄 Reset"):
+# ----------------------------------
+# Reset Button
+# ----------------------------------
+if st.button("🔄 Reset All"):
     st.session_state.clear()
     st.rerun()
