@@ -35,11 +35,33 @@ for message in st.session_state.messages:
     with st.chat_message(message["role"]):
         st.markdown(message["content"])
 
+# 15 Marks Exam Prompt Template
+exam_prompt_template = """
+Generate a perfect 15-marks university exam answer on the topic: “{TOPIC}” in topper-writing style.
+Follow this exact structure:
+
+Introduction / (4–5 bullet points)
+Definition/  (4–5 bullet points)
+Neat Diagram (text-based block diagram)
+6 Key Points (Each with heading + 2–3 line explanation)
+Features / (4–5 bullet points)
+Advantages / (4–5 bullet points)
+Characteristics (4–5 bullet points)
+Applications / Real-world uses
+Strong conclusion
+
+Make the answer clean, structured, exam-oriented, and easy to score full marks.
+Do NOT mention how many lines the sections should have. Generate the answer directly.
+"""
+
 # Chat input
-if prompt := st.chat_input("What would you like to know?"):
+if prompt := st.chat_input("Enter your topic for 15-marks answer..."):
     if not api_key:
         st.error("Please enter your Gemini API key in the sidebar!")
     else:
+        # Combine user topic with template
+        final_prompt = exam_prompt_template.replace("{TOPIC}", prompt)
+
         # Add user message to chat
         st.session_state.messages.append({"role": "user", "content": prompt})
         with st.chat_message("user"):
@@ -55,7 +77,7 @@ if prompt := st.chat_input("What would you like to know?"):
                     # Generate response
                     response = client.models.generate_content(
                         model="gemini-2.0-flash",
-                        contents=prompt
+                        contents=final_prompt
                     )
                     
                     # Display response
