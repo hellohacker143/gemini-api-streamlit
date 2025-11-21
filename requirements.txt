@@ -2,3 +2,4 @@ streamlit>=1.28.0
 google-genai>=0.2.0
 fpdf2
 Pillow
+PyPDF2
