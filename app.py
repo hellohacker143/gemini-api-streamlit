@@ -3,88 +3,90 @@ from google import genai
 import re
 
 # Page Config
-st.set_page_config(page_title="Exam Paper Answer Generator", page_icon="📝", layout="centered")
+st.set_page_config(page_title="Exam Paper Answer Generator", page_icon="📘", layout="centered")
 
 # Title
-st.title("📝 15-Marks Student Answer Helper (Perfect Exam Paper Style)")
+st.title("📘 Real Exam Booklet – 15 Marks Answer Generator")
 
 # Sidebar
 with st.sidebar:
-    st.header("⚙️ Configuration")
+    st.header("⚙️ Settings")
     api_key = st.text_input("Enter Gemini API Key", type="password")
     show_diagram = st.checkbox("Show Diagram", value=True)
     st.markdown("---")
-    st.markdown("This app writes answers in a real exam paper format with perfect lines.")
+    st.markdown("Writes answers in REAL booklet format.")
 
-# Input topic
-topic = st.text_input("Enter your exam topic:")
+# Input Topic
+topic = st.text_input("Enter exam topic:")
 
 # Generate Button
 if st.button("Generate 15-Marks Answer"):
     if not api_key:
         st.error("Please enter API Key!")
     elif not topic:
-        st.error("Please enter a topic!")
+        st.error("Enter a topic!")
     else:
-        with st.spinner("Writing answer on exam sheet…"):
+        with st.spinner("Writing answer on real exam booklet…"):
             try:
                 # Diagram ON/OFF
-                diagram_text = "Include a neat text-based diagram." if show_diagram else "Do NOT include any diagram."
+                diagram_text = "Include a neat text diagram." if show_diagram else "Do NOT include any diagram."
 
-                # Prompt
+                # Prompt for AI
                 prompt = f"""
-Generate a perfect 15-marks university exam answer on: "{topic}".
+Write a topper-level 15-marks university exam answer on "{topic}".
 
-Follow this structure exactly:
+Follow this order strictly:
 - Introduction (4–5 points)
 - Definition (4–5 points)
 - Diagram: {diagram_text}
-- Six Key Points (heading + 2–3 lines explanation each)
-- Features (4–5 points)
-- Advantages (4–5 points)
-- Characteristics (4–5 points)
+- Six Key Points (heading + 2–3 lines explanation)
+- Features
+- Advantages
+- Characteristics
 - Applications
-- Final conclusion
+- Strong conclusion
 
-Important:
-- DO NOT show section names in the answer.
-- Headings must be in BLUE.
-- Paragraph/content must be in BLACK.
-- No stars (** or *) in the response.
-- Produce a clean, topper-level exam answer.
+Rules:
+- ONLY the first heading should be BLUE.
+- Remaining content must be BLACK.
+- No ** or * anywhere.
+- No section titles like Introduction/Definition shown.
+- Write like a topper.
 """
 
-                # API Call
+                # API CALL
                 client = genai.Client(api_key=api_key)
                 response = client.models.generate_content(
                     model="gemini-2.0-flash",
                     contents=prompt
                 )
 
-                # Remove ALL star marks
+                # -------- CLEAN RESPONSE -------- #
                 clean = response.text.replace("**", "").replace("*", "")
                 clean = clean.replace("\n", "<br>")
 
-                # PERFECT EXAM PAPER CSS (BEST VERSION)
-                exam_css = """
+                # -------- BOOKLET CSS (PERFECT REAL LOOK) -------- #
+                booklet_css = """
                 <style>
-                .exam-paper {
-                    background:
+                .booklet {
+                    background: 
                         linear-gradient(white 38px, black 38px, black 40px, white 40px);
                     background-size: 100% 40px;
-                    padding: 40px 60px;
                     border-left: 10px solid red;
-                    height: 1250px;
-                    font-size: 19px;
+                    padding: 40px 60px;
+                    margin: auto;
+                    width: 85%;
+                    height: 1300px;
+                    border-radius: 10px;
+                    box-shadow: 0 0 25px #888;
                     line-height: 2.05;
+                    font-size: 19px;
                     overflow-y: auto;
-                    border-radius: 6px;
-                    box-shadow: 0 0 10px #999;
                 }
                 .blue-head {
                     color: #0055ff;
-                    font-weight: 800;
-                    font-size: 20px;
+                    font-weight: 900;
+                    font-size: 22px;
                 }
                 .black-text {
                     color: black;
@@ -92,23 +94,32 @@ Important:
                 </style>
                 """
 
-                # Auto-color headings
+                # -------- AUTO COLOR LOGIC -------- #
+                applied_first_heading = False
+
                 def colorize(text):
-                    formatted = ""
+                    nonlocal applied_first_heading
+                    output = ""
+
                     for line in text.split("<br>"):
+
                         if len(line.strip()) == 0:
-                            formatted += "<br>"
+                            output += "<br>"
                             continue
 
-                        # Auto-detect heading
-                        if line.strip().endswith(":") or len(line.strip()) < 40:
-                            formatted += f"<span class='blue-head'>{line}</span><br>"
-                        else:
-                            formatted += f"<span class='black-text'>{line}</span><br>"
-                    return formatted
+                        # FIRST heading (TOP) must be BLUE
+                        if not applied_first_heading:
+                            output += f"<span class='blue-head'>{line}</span><br>"
+                            applied_first_heading = True
+                            continue
 
-                final_html = exam_css + f"""
-                <div class="exam-paper">
+                        # All remaining text BLACK
+                        output += f"<span class='black-text'>{line}</span><br>"
+
+                    return output
+
+                final_html = booklet_css + f"""
+                <div class="booklet">
                     {colorize(clean)}
                 </div>
                 """
