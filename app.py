@@ -27,45 +27,25 @@ with st.sidebar:
 # -------------------------
 subjects = {
     "Computer Networks (CN)": [
-        "OSI Model",
-        "TCP/IP Model",
-        "Routing Algorithms",
-        "Network Security",
-        "Subnetting",
-        "Switching Techniques",
-        "Transport Layer",
-        "IP Addressing",
-        "Wireless Networks",
-        "Application Layer Protocols"
+        "OSI Model", "TCP/IP Model", "Routing Algorithms", "Network Security",
+        "Subnetting", "Switching Techniques", "Transport Layer", "IP Addressing",
+        "Wireless Networks", "Application Layer Protocols"
     ],
     "Operating Systems (OS)": [
-        "Process Synchronization",
-        "Deadlocks",
-        "CPU Scheduling",
-        "Memory Management",
-        "Paging and Segmentation",
-        "File System",
-        "Virtual Memory",
-        "Threads & Multithreading",
-        "Disk Scheduling",
-        "System Calls"
+        "Process Synchronization", "Deadlocks", "CPU Scheduling", "Memory Management",
+        "Paging and Segmentation", "File System", "Virtual Memory",
+        "Threads & Multithreading", "Disk Scheduling", "System Calls"
     ],
     "Machine Learning (ML)": [
-        "Linear Regression",
-        "Logistic Regression",
-        "Decision Trees",
-        "K-Nearest Neighbors (KNN)",
-        "Naive Bayes",
-        "Support Vector Machines (SVM)",
-        "Neural Networks",
-        "K-Means Clustering",
-        "Overfitting & Underfitting",
+        "Linear Regression", "Logistic Regression", "Decision Trees",
+        "K-Nearest Neighbors (KNN)", "Naive Bayes", "Support Vector Machines (SVM)",
+        "Neural Networks", "K-Means Clustering", "Overfitting & Underfitting",
         "Train-Test Split"
     ]
 }
 
 # -------------------------
-#  Prompt Template
+#  UPDATED Prompt Template (Fixed Key Points + Conclusion)
 # -------------------------
 exam_template = """
 Generate a perfect 15-marks university exam answer on the topic: “{TOPIC}” in topper-writing style.
@@ -74,12 +54,15 @@ Structure:
 Introduction (4–5 bullet points)
 Definition (4–5 bullet points)
 Neat Diagram (text-based block diagram)
-6 Key Points (Each with heading + explanation)
+Directly give 6 Key Points using numbered format. DO NOT write “6 Key Points:” as a section title.
+Each key point must contain:
+• A heading
+• A 2–3 line explanation
 Features (4–5 bullet points)
 Advantages (4–5 bullet points)
 Characteristics (4–5 bullet points)
 Applications / Real-world uses
-Strong conclusion
+Conclusion (Write a strong, exam-oriented final paragraph with a clear closing statement)
 
 Write clean, structured, and exam-oriented content. Do NOT mention number of lines.
 """
@@ -108,18 +91,23 @@ if selected_subject:
         filtered_topics = trending
 
     # -------------------------
-    #  Trending Topics UI
+    #  Trending Topics Grid (3 per row)
     # -------------------------
     st.subheader("🔥 Trending Topics")
+
+    cols = st.columns(3)
+    i = 0
     for topic in filtered_topics:
-        if st.button(topic):
-            st.session_state["selected_topic"] = topic
+        with cols[i % 3]:
+            if st.button(topic):
+                st.session_state["selected_topic"] = topic
+        i += 1
 
     # -------------------------
     #  Suggested Topics
     # -------------------------
     st.subheader("💡 Suggested Topics")
-    suggestions = filtered_topics[:5]  # first 5 as suggestion
+    suggestions = filtered_topics[:5]
     st.write(", ".join(suggestions))
 
 # -------------------------
@@ -135,7 +123,6 @@ if "selected_topic" in st.session_state:
         else:
             try:
                 client = genai.Client(api_key=api_key)
-
                 final_prompt = exam_template.replace("{TOPIC}", selected_topic)
 
                 with st.spinner("Generating topper-quality answer..."):
