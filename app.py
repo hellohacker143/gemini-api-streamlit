@@ -182,7 +182,7 @@ if st.session_state.selected_topic:
     
     # Image Upload Section
     st.markdown("#### 📷 Upload Image (Optional)")
-    uploaded_file = st.file_uploader("Upload an image related to the topic", type=["png", "jpg", "jpeg"])
+    uploaded_file = st.file_uploader("Upload an image related to the topic", type=["png", "jpg", "jpeg", "webp", "bmp", "gif", "tiff", "svg"]g"])
     
     # Text input below image
     if uploaded_file:
