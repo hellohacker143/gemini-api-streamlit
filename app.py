@@ -15,11 +15,7 @@ st.title("📝 15-Marks Student Answer Helper + 🤖 Gemini Chatbot")
 # Sidebar
 with st.sidebar:
     st.header("⚙️ Configuration")
-    api_key = st.text_input(
-        "Enter Gemini API Key",
-        type="password"
-    )
-
+    api_key = st.text_input("Enter Gemini API Key", type="password")
     st.markdown("---")
     mode = st.radio("Choose Mode", ["💬 Chatbot", "📝 Student Answer Helper"])
     st.markdown("---")
@@ -70,8 +66,9 @@ if mode == "💬 Chatbot":
         st.rerun()
 
 
+
 # ----------------------------------------------------
-# 2️⃣ EXAM PAPER MODE (FULL EXAM BACKGROUND)
+# 2️⃣ EXAM PAPER MODE — FULL EXAM SHEET + BLACK HEADINGS
 # ----------------------------------------------------
 else:
     st.subheader("📝 Generate 15-Marks Exam Answer (FULL Exam Paper Background)")
@@ -93,11 +90,13 @@ Write a topper-level 15-marks answer on:
 {topic}
 
 Rules:
-- Do NOT write section headings.
-- Smooth continuous answer.
-- Include a simple text diagram.
-- Use black mini-headings and blue body text.
-- Format like a real handwritten exam paper.
+- DO NOT include section headings.
+- Write smooth continuous exam-style content.
+- Use natural internal headings (not section labels).
+- Convert headings to BLACK.
+- Body text must be BLUE.
+- Include a simple diagram.
+- Answer should look handwritten on an exam sheet.
 """
 
                     response = client.models.generate_content(
@@ -105,11 +104,10 @@ Rules:
                         contents=prompt
                     )
 
-                    raw = response.text
-                    html_text = raw.replace("\n", "<br>")
+                    text = response.text.replace("\n", "<br>")
 
-                    # -------------- FULL EXAM SHEET BACKGROUND CSS ---------------- #
-                    exam_paper_css = """
+                    # ---------------- CSS for FULL EXAM SHEET + HEADING COLORS ---------------- #
+                    exam_css = """
                     <style>
                     .exam-paper {
                         background: repeating-linear-gradient(
@@ -127,18 +125,30 @@ Rules:
                         box-shadow: 0 0 6px #999;
                     }
                     .blue-text { color: #0055ff; }
-                    .black-head { color: black; font-weight: 700; }
+                    .heading-black {
+                        color: black;
+                        font-weight: 900;
+                        font-size: 20px;
+                    }
                     </style>
                     """
 
-                    # Convert simple "**Heading**" to black headings
-                    html_text = html_text.replace("**", "")
-                    html_text = html_text.replace(":", ":</span><span class='blue-text'>")
+                    # ---------------- AUTO-DETECT HEADINGS ---------------- #
+                    # Any line ending with ":" becomes a black heading
+                    import re
+                    def make_headings_black(html):
+                        return re.sub(
+                            r"(.*?):<br>",
+                            r"<span class='heading-black'>\1</span>:<br>",
+                            html
+                        )
 
-                    final_html = f"""
-                    {exam_paper_css}
+                    text = make_headings_black(text)
+
+                    # Wrap all non-headings in blue
+                    final_html = exam_css + f"""
                     <div class="exam-paper">
-                        <span class="blue-text">{html_text}</span>
+                        <span class="blue-text">{text}</span>
                     </div>
                     """
 
