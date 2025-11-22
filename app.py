@@ -1,5 +1,6 @@
 import streamlit as st
 from google import genai
+import re
 
 # ---------------------------------------------------
 # PAGE CONFIG
@@ -15,9 +16,8 @@ st.set_page_config(
 # ---------------------------------------------------
 st.title("SEO-Optimized 1200-Word Blog Generator")
 
-st.write(
-    "Create fully optimized, SEO-first 1200-word blog posts with complete SEO elements."
-)
+st.write("Generates clean SEO articles with RED H2 headings and zero markdown symbols.")
+
 
 # ---------------------------------------------------
 # SIDEBAR — API KEY
@@ -25,7 +25,7 @@ st.write(
 with st.sidebar:
     st.header("Settings")
     api_key = st.text_input("Enter Gemini API Key", type="password")
-    st.write("Generates full SEO content + SEO metadata")
+    st.write("1200-word SEO content + red H2 headings")
 
 if not api_key:
     st.warning("Please enter your Gemini API key to continue.")
@@ -52,7 +52,9 @@ left.subheader("SEO Blog Generator")
 
 seo_topic = left.text_input("Enter Blog Topic:")
 extra_line = left.text_input("Sentence required in first 100 words:")
+
 generate_blog = left.button("Generate SEO Blog")
+
 
 # ---------------------------------------------------
 # SEO GENERATION
@@ -62,16 +64,26 @@ if generate_blog and seo_topic:
     seo_prompt = f"""
 Write a 1200-word SEO-optimized blog article on the topic: "{seo_topic}".
 
-Include:
-1. Focus Keyphrase
-2. SEO-Friendly Slug
-3. Meta Title (max 60 chars)
-4. Meta Description (max 160 chars)
-5. Perfect H1 (no markdown)
-6. H2 / H3 structure (no markdown)
-7. First 100 words must contain: "{extra_line}"
-8. Full 1200-word content in simple text only (NO **, NO ##, NO markdown)
-9. Return output in EXACTLY this format:
+RULES:
+1. NO markdown symbols: no *, no **, no #, no ##
+2. Use plain text only
+3. H2 headings MUST be written like this format inside text:
+   H2: Your Heading
+4. The first 100 words MUST contain: "{extra_line}"
+5. Include these sections:
+
+Focus Keyphrase:
+Slug:
+Meta Title:
+Meta Description:
+H1:
+Full Blog Content:
+
+### In Full Blog Content:
+- H2 headings MUST be marked as: H2: Heading Text
+- Do NOT use any markdown
+
+Return output EXACTLY in this format:
 
 Focus Keyphrase:
 (text)
@@ -89,7 +101,7 @@ H1:
 (text)
 
 Full Blog Content:
-(full content, no markdown)
+(full text with H2: headings only)
 """
 
     with st.spinner("Generating SEO Blog…"):
@@ -101,8 +113,8 @@ Full Blog Content:
 
             raw = response.text
 
-            # Remove markdown symbols if any appear
-            raw = raw.replace("**", "").replace("#", "")
+            # remove *, **, # just in case
+            raw = raw.replace("*", "").replace("#", "")
 
             # Split sections
             sections = {
@@ -127,16 +139,28 @@ Full Blog Content:
                     except StopIteration:
                         sections[title] = part.strip()
 
-            # RIGHT PANEL – SEO ELEMENTS
+            # APPLY RED H2 FORMATTING
+            content = sections["Full Blog Content"]
+
+            # Replace "H2: text" → red HTML H2
+            content = re.sub(
+                r"H2:\s*(.*)",
+                r'<h2 style="color:red;">\1</h2>',
+                content
+            )
+
+            # Show RIGHT panel items
             right.subheader("SEO Elements")
 
             for title, text in sections.items():
+                if title == "Full Blog Content":
+                    continue
                 right.write(title)
                 copy_box(text, title)
 
-            # LEFT PANEL – FULL BLOG CONTENT
-            left.write("Full SEO Blog")
-            left.write(sections["Full Blog Content"])
+            # Show LEFT panel content with HTML enabled
+            left.write("Full SEO Blog Content (with Red H2 headings):")
+            left.markdown(content, unsafe_allow_html=True)
 
         except Exception as e:
             left.error(f"Error generating blog: {e}")
