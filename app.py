@@ -2,181 +2,198 @@ import streamlit as st
 from google import genai
 
 # ---------------------------------------------------
-# PAGE CONFIGURATION
+# PAGE CONFIG
 # ---------------------------------------------------
 st.set_page_config(
-    page_title="Grouped 15-Marks + SEO Generator",
+    page_title="Grouped + SEO Blog Generator",
     page_icon="📝",
     layout="wide"
 )
 
 # ---------------------------------------------------
-# MAIN TITLE
+# TITLE
 # ---------------------------------------------------
-st.title("📝 Grouped 15-Marks Answer + SEO Content Generator")
+st.title("📝 Multi-Purpose Generator: 15-Marks + SEO Blog Writer")
+
 st.markdown("""
-Generate **topper-quality exam answers** and **SEO content** in two frames.
+Generate **university 15-marks answers** and **1200-word SEO-optimized blog posts**
+with complete SEO elements in two clean frames.
 """)
 
 # ---------------------------------------------------
-# SIDEBAR (API KEY)
+# SIDEBAR
 # ---------------------------------------------------
 with st.sidebar:
     st.header("⚙️ Configuration")
     api_key = st.text_input(
         "Enter Gemini API Key",
-        type="password",
-        help="Get your API Key → https://aistudio.google.com/apikey"
+        type="password"
     )
     st.markdown("---")
-    st.write("🔹 15-Marks Generator")
-    st.write("🔹 SEO Title + Description + Keywords")
-    st.write("🔹 Copy buttons included")
+    st.write("🔹 15-Marks Answer Generator")
+    st.write("🔹 1200-Words SEO Blog Generator")
+    st.write("🔹 Powered by Gemini 2.0 Flash")
 
-
-# ---------------------------------------------------
-# LEFT + RIGHT COLUMNS
-# ---------------------------------------------------
-left, right = st.columns(2)
-
+if not api_key:
+    st.warning("Enter your API key to start.")
+else:
+    client = genai.Client(api_key=api_key)
 
 # ---------------------------------------------------
-# ---------------------- FRAME 1 ---------------------
-# ------------------ 15-MARKS ANSWERS ----------------
+# TWO-FRAME LAYOUT
 # ---------------------------------------------------
-with left:
-    st.header("📘 15-Marks Grouped Answer Generator")
-
-    exam_prompt_template = """
-Generate a perfect 15-marks university exam answer on the topic: “{TOPIC}” in topper-writing style.
-Follow this exact structure:
-
-Introduction – (4–5 bullet points)
-Definition – (4–5 bullet points)
-Neat Diagram – (text-based block diagram)
-6 Key Points – (Each with heading + 2–3 line explanation)
-Features – (4–5 bullet points)
-Advantages – (4–5 bullet points)
-Characteristics – (4–5 bullet points)
-Applications / Real-world uses
-Strong conclusion
-
-Make the answer clean, structured, and ready to score full marks.
-"""
-
-    group_text = st.text_area(
-        "Enter Groups & Topics:",
-        height=250,
-        placeholder="LLM:\nTransformers\nTokenization\n\nAPI:\nREST API\nGraphQL"
-    )
-
-    generate_answers = st.button("🚀 Generate Answers")
-
-    if generate_answers:
-
-        if not api_key:
-            st.error("Please enter your API key!")
-            st.stop()
-
-        if not group_text.strip():
-            st.error("Please enter groups and topics!")
-            st.stop()
-
-        client = genai.Client(api_key=api_key)
-        groups = {}
-        current_group = None
-
-        # ---- PARSE GROUPS ----
-        for line in group_text.split("\n"):
-            line = line.strip()
-            if not line:
-                continue
-
-            if line.endswith(":"):
-                current_group = line[:-1]
-                groups[current_group] = []
-            else:
-                if current_group:
-                    groups[current_group].append(line)
-
-        st.subheader("📚 Generated Answers")
-
-        # ---- GENERATE ANSWERS ----
-        for group, topics in groups.items():
-            st.markdown(f"### 🟦 Group: **{group}**")
-            for topic in topics:
-                st.markdown(f"#### 🔹 Topic: **{topic}**")
-                final_prompt = exam_prompt_template.replace("{TOPIC}", topic)
-
-                with st.spinner(f"Generating answer for {topic}..."):
-                    try:
-                        res = client.models.generate_content(
-                            model="gemini-2.0-flash",
-                            contents=final_prompt
-                        )
-                        answer = res.text
-
-                        # Display answer
-                        st.markdown(answer)
-
-                        # Copy button
-                        st.code(answer)
-                        st.button(f"📋 Copy Answer: {topic}", key=f"copy_{topic}")
-
-                    except Exception as e:
-                        st.error(f"Error: {e}")
-
-                st.markdown("---")
-
+left, right = st.columns([2.2, 1])
 
 # ---------------------------------------------------
-# ---------------------- FRAME 2 ---------------------
-# --------------------- SEO TOOL KIT -----------------
+# LEFT FRAME → SEO BLOG GENERATOR
 # ---------------------------------------------------
-with right:
-    st.header("📈 SEO Content Generator")
+left.subheader("📰 SEO-Optimized 1200-Word Blog Generator")
 
-    seo_topic = st.text_input(
-        "Enter Topic / Keyword:",
-        placeholder="Example: Best AI Tools for Students"
-    )
+seo_topic = left.text_input("Enter Blog Topic:")
+extra_line = left.text_input("Add a required sentence in first 100 words:")
+generate_blog = left.button("🚀 Generate SEO Blog")
 
-    generate_seo = st.button("✨ Generate SEO Content")
+# SEO Prompt
+seo_prompt = """
+Write a fully SEO-optimized blog post of 1200 words on the topic: "{TOPIC}"
 
-    if generate_seo:
-
-        if not api_key:
-            st.error("Please enter your API key!")
-            st.stop()
-
-        if not seo_topic.strip():
-            st.error("Enter a keyword for SEO!")
-            st.stop()
-
-        seo_prompt = f"""
-Generate SEO content for the topic: {seo_topic}
 Include:
-- SEO Optimized Article (150–200 words)
-- 10 Focus Keywords
-- SEO Title (70 characters)
-- SEO Description (160 characters)
+✔️ Focus Keyphrase (exact match)
+✔️ SEO-Friendly Slug
+✔️ Meta Title (60 characters)
+✔️ Meta Description (160 characters)
+✔️ Perfect H1
+✔️ H2 and H3 structure
+✔️ First 100 words containing this line: "{EXTRA}"
+✔️ Clean, neat, SEO-first writing style
+✔️ Format in Markdown
+
+Return output in this JSON structure:
+{
+ "keyphrase": "",
+ "slug": "",
+ "meta_title": "",
+ "meta_description": "",
+ "h1": "",
+ "content": ""
+}
 """
 
-        client = genai.Client(api_key=api_key)
+# ---------------------------------------------------
+# RIGHT FRAME → SEO ELEMENT PANEL
+# ---------------------------------------------------
+right.subheader("📌 SEO Elements")
 
-        with st.spinner("Generating SEO content..."):
-            try:
-                res = client.models.generate_content(
-                    model="gemini-2.0-flash",
-                    contents=seo_prompt
-                )
-                seo_output = res.text
+def copy_btn(text, label):
+    right.code(text, language="")
+    right.button(f"📋 Copy {label}", key=label)
 
-                st.subheader("📝 SEO Content Output")
-                st.markdown(seo_output)
+# ---------------------------------------------------
+# GENERATE BLOG
+# ---------------------------------------------------
+if generate_blog and seo_topic:
+    with st.spinner("Generating SEO-Optimized Blog…"):
+        final_prompt = seo_prompt.replace("{TOPIC}", seo_topic).replace("{EXTRA}", extra_line)
 
-                st.code(seo_output)
-                st.button("📋 Copy SEO Content", key="copy_seo")
+        try:
+            response = client.models.generate_content(
+                model="gemini-2.0-flash",
+                contents=final_prompt
+            )
 
-            except Exception as e:
-                st.error(f"Error: {e}")
+            import json
+            data = json.loads(response.text)
+
+            # SHOW OUTPUT IN RIGHT FRAME
+            right.markdown("### 🎯 Focus Keyphrase")
+            copy_btn(data["keyphrase"], "Keyphrase")
+
+            right.markdown("### 🔗 SEO-Friendly Slug")
+            copy_btn(data["slug"], "Slug")
+
+            right.markdown("### 🏷️ Meta Title")
+            copy_btn(data["meta_title"], "Meta Title")
+
+            right.markdown("### 📝 Meta Description")
+            copy_btn(data["meta_description"], "Meta Description")
+
+            right.markdown("### 🏆 H1 Tag")
+            copy_btn(data["h1"], "H1")
+
+            # FULL CONTENT IN LEFT PANEL
+            left.markdown("### 📰 Full 1200-Word SEO Blog")
+            left.markdown(data["content"])
+
+        except Exception as e:
+            left.error(f"Error: {e}")
+
+# ---------------------------------------------------
+# 15-MARK ANSWER GENERATOR BELOW
+# ---------------------------------------------------
+st.markdown("---")
+st.header("📚 Grouped 15-Marks Answer Generator")
+
+group_text = st.text_area(
+    "Enter Groups and Topics:",
+    height=250,
+    placeholder="LLM:\nTransformers\nTokenization\n\nAPI:\nREST\nGraphQL"
+)
+
+generate_btn = st.button("🧾 Generate All 15-Mark Answers")
+
+exam_prompt_template = """
+Generate a perfect 15-marks university exam answer on the topic: “{TOPIC}” in topper-writing style.
+
+Structure:
+Introduction – bullets
+Definition – bullets
+Diagram – text format
+6 Key Points – heading + explanation
+Features – bullets
+Advantages – bullets
+Characteristics – bullets
+Applications
+Conclusion
+
+Direct answer only.
+"""
+
+if generate_btn:
+    if not group_text.strip():
+        st.error("Enter at least one group!")
+        st.stop()
+
+    groups = {}
+    current_group = None
+
+    # Parse text
+    for line in group_text.split("\n"):
+        line = line.strip()
+        if not line:
+            continue
+        if line.endswith(":"):
+            current_group = line[:-1]
+            groups[current_group] = []
+        else:
+            if current_group:
+                groups[current_group].append(line)
+
+    st.markdown("## 📘 Generated Answers")
+
+    for group_name, topics in groups.items():
+        st.markdown(f"### 🟦 Group: **{group_name}**")
+        st.markdown("---")
+
+        for topic in topics:
+            st.markdown(f"## 🔹 Topic: **{topic}**")
+            with st.spinner(f"Generating {topic}..."):
+                final_prompt = exam_prompt_template.replace("{TOPIC}", topic)
+                try:
+                    response = client.models.generate_content(
+                        model="gemini-2.0-flash",
+                        contents=final_prompt
+                    )
+                    st.markdown(response.text)
+                except Exception as e:
+                    st.error(f"Error: {e}")
+            st.markdown("---")
