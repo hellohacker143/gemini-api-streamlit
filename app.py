@@ -17,7 +17,7 @@ if st.button("Humanize Text"):
         st.warning("Please enter some text to humanize.")
     else:
         headers = {
-            "Authorization": f"Bearer {API_KEY}",
+            "Authorization": f"Bearer {api_key_7283c200036946fa8a5af3cc016fc157}",
             "Content-Type": "application/json"
         }
         payload = {
