@@ -3,16 +3,17 @@ from google import genai
 import re
 import json
 import os
+from urllib.parse import quote
 
 # -------------------------------------------------------
 # PAGE SETUP
 # -------------------------------------------------------
 st.set_page_config(page_title="SEO Generator + Saved History", page_icon="📝", layout="wide")
-st.title("SEO Blog Generator + Analyzer + Saved Articles")
+st.title("SEO Blog Generator + Analyzer + Saved Articles + New Tab Preview")
 
 
 # -------------------------------------------------------
-# SAFE STORAGE PATH (NO PERMISSION ERRORS)
+# SAFE STORAGE PATH
 # -------------------------------------------------------
 SAVE_FOLDER = "saved_data"
 SAVE_FILE = f"{SAVE_FOLDER}/saved_posts.json"
@@ -25,7 +26,7 @@ if not os.path.exists(SAVE_FILE):
 
 
 # -------------------------------------------------------
-# LOAD SAVED POSTS
+# JSON LOAD / SAVE
 # -------------------------------------------------------
 def load_saved_posts():
     try:
@@ -35,9 +36,6 @@ def load_saved_posts():
         return {}
 
 
-# -------------------------------------------------------
-# SAVE NEW POST
-# -------------------------------------------------------
 def save_post(post_id, data):
     saved = load_saved_posts()
     saved[post_id] = data
@@ -45,9 +43,6 @@ def save_post(post_id, data):
         json.dump(saved, f, indent=4)
 
 
-# -------------------------------------------------------
-# DELETE POST
-# -------------------------------------------------------
 def delete_post(post_id):
     saved = load_saved_posts()
     if post_id in saved:
@@ -57,13 +52,12 @@ def delete_post(post_id):
 
 
 # -------------------------------------------------------
-# SIDEBAR
+# SIDEBAR SETTINGS
 # -------------------------------------------------------
 with st.sidebar:
     st.header("Settings")
     api_key = st.text_input("Enter Gemini API Key", type="password")
-
-    website_link = st.text_input("Your Website Link:", "https://yourwebsite.com")
+    website_link = st.text_input("Your Website:", "https://yourwebsite.com")
 
     st.write("---")
     st.subheader("Saved SEO Posts")
@@ -90,12 +84,12 @@ def copy_box(text, label):
 
 
 # -------------------------------------------------------
-# SHOW OLD POST PAGE
+# LOAD OLD POST
 # -------------------------------------------------------
 if selected_post != "None":
     post = saved_posts[selected_post]
 
-    st.subheader(f"Loaded Old SEO Article: {selected_post}")
+    st.subheader(f"Loaded Old SEO Article")
 
     st.write("Focus Keyphrase:")
     copy_box(post["keyphrase"], "Keyphrase")
@@ -127,29 +121,14 @@ if selected_post != "None":
     for k, v in post["seo_score"].items():
         st.write(f"{k}: {v}")
 
-    # ---- OPEN IN EXTERNAL EDITOR ----
-    st.subheader("Open in Online Editor")
+    st.subheader("Open Content in New Tab")
+    encoded = quote(post["html_content"])
+    preview_url = f"data:text/html;charset=utf-8,{encoded}"
 
-    editor_url = st.selectbox(
-        "Select Editor:",
-        [
-            "https://editpad.org",
-            "https://anotepad.com",
-            "https://notepad.pw",
-            "https://pastebin.com",
-            "https://justnotepad.com",
-            "https://wordcounter.net",
-            "https://docs.google.com",
-            "https://notion.so",
-            "https://quillbot.com/editor"
-        ]
+    st.markdown(
+        f"<a href='{preview_url}' target='_blank' style='font-size:20px; color:blue;'>CLICK HERE TO OPEN FULL ARTICLE IN NEW TAB</a>",
+        unsafe_allow_html=True
     )
-
-    if st.button("Open in Editor"):
-        st.markdown(
-            f"<meta http-equiv='refresh' content='0; url={editor_url}'>",
-            unsafe_allow_html=True
-        )
 
     st.stop()
 
@@ -163,7 +142,7 @@ generate = st.button("Generate SEO Article")
 
 
 # -------------------------------------------------------
-# GENERATE ARTICLE
+# GENERATE NEW ARTICLE
 # -------------------------------------------------------
 if generate and api_key and seo_topic:
 
@@ -178,7 +157,8 @@ RULES:
   H1: Title
   H2: Section
   H3: Subsection
-- Must include: "{extra_line}" in first 100 words.
+- Must include this line in first 100 words:
+  "{extra_line}"
 
 Return EXACT structure:
 
@@ -204,11 +184,10 @@ Conclusion:
 (short conclusion)
 
 Full Blog Content:
-(full article with H1:, H2:, H3:)
+(full article using H1:, H2:, H3:)
 """
 
-    with st.spinner("Generating..."):
-
+    with st.spinner("Generating Article…"):
         response = client.models.generate_content(
             model="gemini-2.0-flash",
             contents=prompt
@@ -216,7 +195,7 @@ Full Blog Content:
 
         raw = response.text.replace("*", "").replace("#", "")
 
-        # Extract sections
+        # Extract Sections
         parts = {
             "Focus Keyphrase": "",
             "Slug": "",
@@ -231,22 +210,21 @@ Full Blog Content:
         for key in parts.keys():
             marker = f"{key}:"
             if marker in raw:
-                part = raw.split(marker)[1]
                 try:
-                    next_marker = next(x for x in parts.keys()
-                                       if x != key and f"{x}:" in part)
-                    parts[key] = part.split(f"{next_marker}:")[0].strip()
+                    next_marker = next(
+                        x for x in parts.keys() if x != key and f"{x}:" in raw.split(marker)[1]
+                    )
+                    parts[key] = raw.split(marker)[1].split(f"{next_marker}:")[0].strip()
                 except StopIteration:
-                    parts[key] = part.strip()
+                    parts[key] = raw.split(marker)[1].strip()
 
-        # HTML formatting for content
+        # Convert to HTML
         html_content = parts["Full Blog Content"]
-
         html_content = re.sub(r"H1:\s*(.+)", r"<h1 style='color:black;'>\1</h1>", html_content)
         html_content = re.sub(r"H2:\s*(.+)", r"<h2 style='color:red;'>\1</h2>", html_content)
         html_content = re.sub(r"H3:\s*(.+)", r"<h3 style='color:blue;'>\1</h3>", html_content)
 
-        # Add external links
+        # External Links
         wiki = f"https://en.wikipedia.org/wiki/{seo_topic.replace(' ', '_')}"
         html_content += f"""
 <br><br>
@@ -323,7 +301,7 @@ Full Blog Content:
         })
 
         # -------------------------------------------------------
-        # DISPLAY NEW POST ON SCREEN
+        # DISPLAY NEW ARTICLE
         # -------------------------------------------------------
         st.subheader("Generated SEO Article")
 
@@ -357,28 +335,15 @@ Full Blog Content:
         for k, v in seo_score.items():
             st.write(f"{k}: {v}")
 
-        # ----------------------------------------
-        # OPEN IN EXTERNAL EDITOR
-        # ----------------------------------------
-        st.subheader("Open in Online Editor")
+        # -------------------------------------------------------
+        # OPEN IN NEW TAB WITH FULL CONTENT
+        # -------------------------------------------------------
+        st.subheader("Open Content in New Tab")
 
-        editor_url = st.selectbox(
-            "Select Editor:",
-            [
-                "https://editpad.org",
-                "https://anotepad.com",
-                "https://notepad.pw",
-                "https://pastebin.com",
-                "https://justnotepad.com",
-                "https://wordcounter.net",
-                "https://docs.google.com",
-                "https://notion.so",
-                "https://quillbot.com/editor"
-            ]
-        )
+        encoded = quote(html_content)
+        preview_url = f"data:text/html;charset=utf-8,{encoded}"
 
-        if st.button("Open in Editor"):
-            st.markdown(
-                f"<meta http-equiv='refresh' content='0; url={editor_url}'>",
-                unsafe_allow_html=True
-)
+        st.markdown(
+            f"<a href='{preview_url}' target='_blank' style='font-size:20px; color:blue;'>CLICK HERE TO OPEN FULL ARTICLE IN NEW TAB</a>",
+            unsafe_allow_html=True
+    )
