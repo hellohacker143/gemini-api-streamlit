@@ -1,77 +1,64 @@
-import streamlit as st
+
+            import streamlit as st
 from google import genai
 import re
 
-# ---------------------------------------------------
-# PAGE CONFIG
-# ---------------------------------------------------
-st.set_page_config(
-    page_title="SEO Blog Generator + SEO Analyzer",
-    page_icon="📝",
-    layout="wide"
-)
+st.set_page_config(page_title="SEO Writer + Full SEO Page", page_icon="📝", layout="wide")
 
-# ---------------------------------------------------
-# MAIN TITLE
-# ---------------------------------------------------
-st.title("SEO Blog Generator with SEO Score Analyzer")
+st.title("Complete SEO Blog Writer (1200 Words + Full SEO Page + Analyzer)")
 
-st.write("Generate 1200-word SEO content with red H2 headings and detailed SEO scoring.")
+st.write("This tool generates a full SEO article with red H2 headings, external links, SEO score, and copy buttons for ALL sections.")
 
 
-# ---------------------------------------------------
-# SIDEBAR — API KEY
-# ---------------------------------------------------
+# ----------------------------------------
+# SIDEBAR
+# ----------------------------------------
 with st.sidebar:
     st.header("Settings")
     api_key = st.text_input("Enter Gemini API Key", type="password")
-    st.write("Features:")
-    st.write("- SEO Article Generator")
-    st.write("- Red H2 HTML Headings")
-    st.write("- SEO Score Analyzer")
+    website_link = st.text_input("Enter Your Website Link:", "https://yourwebsite.com")
+    st.write("Wiki link auto-added from topic.")
+
 
 if not api_key:
-    st.warning("Please enter your Gemini API key to continue.")
-else:
-    client = genai.Client(api_key=api_key)
+    st.warning("Please enter your Gemini API key.")
+    st.stop()
 
-# ---------------------------------------------------
-# TWO-FRAME LAYOUT
-# ---------------------------------------------------
-left, right = st.columns([2.2, 1])
+client = genai.Client(api_key=api_key)
 
-# Utility
-def copy_box(text, key):
+
+# ----------------------------------------
+# COPY BUTTON FUNCTION
+# ----------------------------------------
+def copy_box(text, label):
     st.code(text)
-    st.button(f"Copy {key}", key=key)
+    st.button(f"Copy {label}", key=label)
 
 
-# ---------------------------------------------------
-# LEFT PANEL → SEO GENERATOR
-# ---------------------------------------------------
-left.subheader("SEO Blog Generator")
-
-seo_topic = left.text_input("Enter Blog Topic:")
-extra_line = left.text_input("Sentence required in first 100 words:")
-
-generate_blog = left.button("Generate SEO Blog")
+# ----------------------------------------
+# INPUTS
+# ----------------------------------------
+seo_topic = st.text_input("Enter Blog Topic:")
+extra_line = st.text_input("Required line for first 100 words:")
+generate = st.button("Generate Full SEO Page")
 
 
-# ---------------------------------------------------
-# SEO GENERATION
-# ---------------------------------------------------
-if generate_blog and seo_topic:
+# ----------------------------------------
+# GENERATE
+# ----------------------------------------
+if generate and seo_topic:
 
-    seo_prompt = f"""
-Write a 1200-word SEO-optimized blog article on the topic: "{seo_topic}".
+    prompt = f"""
+Write a 1200-word SEO-optimized blog article on "{seo_topic}".
 
 RULES:
-- No markdown: no *, no **, no #, no ##
-- Use plain text only
-- H2 headings must be written exactly as: H2: Heading Text
-- The first 100 words must contain: "{extra_line}"
+- No markdown: no *, no #, no **.
+- Use plain text.
+- H1 must be written as: H1: Title Here
+- Each H2 must be written as: H2: Heading Text
+- First 100 words MUST contain: "{extra_line}"
 
-Return output exactly like:
+Return EXACT format:
 
 Focus Keyphrase:
 (text)
@@ -89,138 +76,154 @@ H1:
 (text)
 
 Full Blog Content:
-(full text with H2: headings only)
+(full article, only H1: and H2: format)
 """
 
-    with st.spinner("Generating SEO Blog…"):
+    with st.spinner("Generating Article…"):
+        response = client.models.generate_content(
+            model="gemini-2.0-flash",
+            contents=prompt
+        )
+        raw = response.text
 
-        try:
-            response = client.models.generate_content(
-                model="gemini-2.0-flash",
-                contents=seo_prompt
-            )
+        raw = raw.replace("*", "").replace("#", "")
 
-            raw = response.text
+        sections = {
+            "Focus Keyphrase": "",
+            "Slug": "",
+            "Meta Title": "",
+            "Meta Description": "",
+            "H1": "",
+            "Full Blog Content": ""
+        }
 
-            # Clean just in case
-            raw = raw.replace("*", "").replace("#", "")
+        # SPLITTING
+        for key in sections.keys():
+            marker = f"{key}:"
+            if marker in raw:
+                part = raw.split(marker)[1]
+                try:
+                    next_marker = next(
+                        other for other in sections.keys()
+                        if other != key and f"{other}:" in part
+                    )
+                    sections[key] = part.split(f"{next_marker}:")[0].strip()
+                except StopIteration:
+                    sections[key] = part.strip()
 
-            # Sections
-            sections = {
-                "Focus Keyphrase": "",
-                "Slug": "",
-                "Meta Title": "",
-                "Meta Description": "",
-                "H1": "",
-                "Full Blog Content": ""
-            }
+        # Format H1
+        h1_html = f"<h1 style='color:black; font-weight:bold;'>{sections['H1']}</h1>"
 
-            # Split output
-            for title in sections.keys():
-                marker = f"{title}:"
-                if marker in raw:
-                    part = raw.split(marker)[1]
-                    try:
-                        next_marker = next(
-                            x for x in sections.keys()
-                            if x != title and f"{x}:" in part
-                        )
-                        sections[title] = part.split(f"{next_marker}:")[0].strip()
-                    except StopIteration:
-                        sections[title] = part.strip()
+        # Format H2 as red
+        content_html = sections["Full Blog Content"]
+        content_html = re.sub(
+            r"H2:\s*(.+)",
+            r"<h2 style='color:red;'>\1</h2>",
+            content_html
+        )
 
-            # Replace H2: with red HTML H2
-            content = sections["Full Blog Content"]
-            content = re.sub(
-                r"H2:\s*(.+)",
-                r'<h2 style="color:red;">\1</h2>',
-                content
-            )
+        # Remove H1: from content if exists
+        content_html = content_html.replace("H1:", "")
 
-            # --------------------------------------------------------
-            # SEO ANALYZER FUNCTION
-            # --------------------------------------------------------
-            def seo_analyzer(text, keyphrase, title, description):
-                score = 100
-                results = {}
+        # ----------------------------------------
+        # SEO ANALYZER
+        # ----------------------------------------
+        def seo_analyze(text, keyphrase, title, desc):
+            score = 100
+            results = {}
 
-                # Word count
-                words = len(text.split())
-                results["Word Count"] = words
+            wc = len(text.split())
+            results["Word Count"] = wc
+            if wc < 900:
+                score -= 10
+            elif wc < 1200:
+                score -= 4
 
-                if words < 900:
-                    score -= 10
-                elif words < 1200:
-                    score -= 4
+            kcount = text.lower().count(keyphrase.lower())
+            density = (kcount / wc) * 100 if wc > 0 else 0
+            results["Keyword Density %"] = round(density, 2)
+            if density < 0.8:
+                score -= 10
+            elif density > 3.5:
+                score -= 5
 
-                # Keyword density
-                kcount = text.lower().count(keyphrase.lower())
-                density = (kcount / words) * 100 if words > 0 else 0
-                results["Keyword Density %"] = round(density, 2)
+            tlen = len(title)
+            results["Meta Title Length"] = tlen
+            if tlen > 60:
+                score -= 5
 
-                if density < 0.8:
-                    score -= 10
-                elif density > 3.5:
-                    score -= 5
+            dlen = len(desc)
+            results["Meta Description Length"] = dlen
+            if dlen > 160:
+                score -= 5
 
-                # Meta title length
-                tlen = len(title)
-                results["Meta Title Length"] = tlen
-                if tlen > 60:
-                    score -= 5
+            passive = len(re.findall(r"\\bwas\\b|\\bwere\\b|\\bbeen\\b", text.lower()))
+            passive_per = (passive / wc) * 100 if wc > 0 else 0
+            results["Passive Voice %"] = round(passive_per, 2)
+            if passive_per > 7:
+                score -= 5
 
-                # Meta description length
-                dlen = len(description)
-                results["Meta Description Length"] = dlen
-                if dlen > 160:
-                    score -= 5
+            sentences = re.split(r"[.!?]", text)
+            lens = [len(s.split()) for s in sentences if len(s.split()) > 0]
+            avg_len = sum(lens) / len(lens) if lens else 0
+            results["Average Sentence Length"] = round(avg_len, 2)
+            if avg_len > 22:
+                score -= 5
 
-                # Passive voice (approx)
-                passive_hits = len(re.findall(r"\bwas\b|\bwere\b|\bbeen\b", text.lower()))
-                passive_percent = (passive_hits / words) * 100 if words > 0 else 0
-                results["Passive Voice %"] = round(passive_percent, 2)
+            results["Final SEO Score"] = max(0, score)
+            return results
 
-                if passive_percent > 7:
-                    score -= 5
+        score = seo_analyze(
+            sections["Full Blog Content"],
+            sections["Focus Keyphrase"],
+            sections["Meta Title"],
+            sections["Meta Description"]
+        )
 
-                # Simple readability check (sentence length avg)
-                sentences = re.split(r"[.!?]", text)
-                sentence_lengths = [len(s.split()) for s in sentences if len(s.split()) > 0]
-                avg_length = sum(sentence_lengths) / len(sentence_lengths) if sentence_lengths else 0
-                results["Average Sentence Length"] = round(avg_length, 2)
+        # ----------------------------------------
+        # DISPLAY FULL PAGE (OPTION A)
+        # ----------------------------------------
 
-                if avg_length > 22:
-                    score -= 5
+        st.subheader("Full SEO Page Output")
 
-                # Final score
-                results["Final SEO Score"] = max(0, score)
-                return results
+        # Focus Keyphrase
+        st.write("Focus Keyphrase:")
+        copy_box(sections["Focus Keyphrase"], "Focus Keyphrase")
 
-            # Run Analyzer
-            seo_score = seo_analyzer(
-                text=sections["Full Blog Content"],
-                keyphrase=sections["Focus Keyphrase"],
-                title=sections["Meta Title"],
-                description=sections["Meta Description"]
-            )
+        # Slug
+        st.write("Slug:")
+        copy_box(sections["Slug"], "Slug")
 
-            # RIGHT PANEL – SEO ELEMENTS + SCORE
-            right.subheader("SEO Elements")
+        # Meta Title
+        st.write("Meta Title:")
+        copy_box(sections["Meta Title"], "Meta Title")
 
-            for title, text in sections.items():
-                if title == "Full Blog Content":
-                    continue
-                right.write(title)
-                copy_box(text, title)
+        # Meta Description
+        st.write("Meta Description:")
+        copy_box(sections["Meta Description"], "Meta Description")
 
-            right.subheader("SEO Score Analyzer")
+        # H1
+        st.write("H1:")
+        st.markdown(h1_html, unsafe_allow_html=True)
+        copy_box(sections["H1"], "H1")
 
-            for k, v in seo_score.items():
-                right.write(f"{k}: {v}")
+        # CONTENT
+        st.write("Full Blog Content:")
+        copy_box(sections["Full Blog Content"], "Full Blog Content (Plain)")
+        st.markdown(content_html, unsafe_allow_html=True)
 
-            # LEFT PANEL — FULL BLOG
-            left.write("Final SEO Blog Content with Red H2 Headings:")
-            left.markdown(content, unsafe_allow_html=True)
+        # ----------------------------------------
+        # EXTERNAL LINKS
+        # ----------------------------------------
+        st.subheader("External Links")
+        wiki_link = f"https://en.wikipedia.org/wiki/{seo_topic.replace(' ', '_')}"
+        st.write("Your Website Link:", website_link)
+        st.write("Wikipedia Link:", wiki_link)
 
-        except Exception as e:
-            left.error(f"Error generating blog: {e}")
+        # ----------------------------------------
+        # SEO SCORE
+        # ----------------------------------------
+        st.subheader("SEO Score Analyzer")
+
+        for k, v in score.items():
+            st.write(f"{k}: {v}")
