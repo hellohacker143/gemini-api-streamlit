@@ -12,23 +12,47 @@ st.title("SEO Blog Generator + Analyzer + Saved Articles")
 
 
 # -------------------------------------------------------
-# FUNCTIONS FOR JSON STORAGE
+# JSON SAVE LOCATION
 # -------------------------------------------------------
-
 SAVE_FILE = "/mnt/data/saved_posts.json"
 
-def load_saved_posts():
-    if not os.path.exists(SAVE_FILE):
-        return {}
-    with open(SAVE_FILE, "r") as f:
-        return json.load(f)
+# Ensure folder exists
+os.makedirs(os.path.dirname(SAVE_FILE), exist_ok=True)
 
+# If file does not exist → create it
+if not os.path.exists(SAVE_FILE):
+    with open(SAVE_FILE, "w") as f:
+        json.dump({}, f)
+
+
+# -------------------------------------------------------
+# LOAD SAVED POSTS
+# -------------------------------------------------------
+def load_saved_posts():
+    try:
+        with open(SAVE_FILE, "r") as f:
+            return json.load(f)
+    except:
+        return {}
+
+
+# -------------------------------------------------------
+# SAVE NEW POST
+# -------------------------------------------------------
 def save_post(post_id, data):
     saved = load_saved_posts()
     saved[post_id] = data
+
+    # Ensure folder still exists
+    os.makedirs(os.path.dirname(SAVE_FILE), exist_ok=True)
+
     with open(SAVE_FILE, "w") as f:
         json.dump(saved, f, indent=4)
 
+
+# -------------------------------------------------------
+# DELETE POST
+# -------------------------------------------------------
 def delete_post(post_id):
     saved = load_saved_posts()
     if post_id in saved:
@@ -38,7 +62,7 @@ def delete_post(post_id):
 
 
 # -------------------------------------------------------
-# SIDEBAR
+# SIDEBAR SETTINGS
 # -------------------------------------------------------
 with st.sidebar:
     st.header("Settings")
@@ -71,7 +95,7 @@ def copy_box(text, label):
 
 
 # -------------------------------------------------------
-# LOAD OLD POST IF SELECTED
+# SHOW OLD POST IF SELECTED
 # -------------------------------------------------------
 if selected_post != "None":
     post = saved_posts[selected_post]
@@ -93,40 +117,43 @@ if selected_post != "None":
     st.write("H1:")
     st.markdown(f"<h1>{post['h1']}</h1>", unsafe_allow_html=True)
 
-    st.write("Full SEO Content (H1,H2,H3 + Links):")
+    st.write("Full SEO Content:")
     st.markdown(post["html_content"], unsafe_allow_html=True)
 
     st.subheader("SEO Score")
     for k, v in post["seo_score"].items():
         st.write(f"{k}: {v}")
 
-    st.stop()   # STOP — DO NOT SHOW GENERATOR WHEN OLD POST IS LOADED
+    st.stop()
 
 
 # -------------------------------------------------------
-# SEO GENERATOR SECTION (MAIN PAGE)
+# SEO GENERATOR INPUTS
 # -------------------------------------------------------
-
 seo_topic = st.text_input("Enter Blog Topic:")
-extra_line = st.text_input("Required line in first 100 words:")
-generate = st.button("Generate New SEO Article")
+extra_line = st.text_input("Required line inside first 100 words:")
+generate = st.button("Generate SEO Article")
 
+
+# -------------------------------------------------------
+# SEO GENERATION
+# -------------------------------------------------------
 if generate and api_key and seo_topic:
 
     client = genai.Client(api_key=api_key)
 
     prompt = f"""
-Write a 1200-word SEO-optimized blog on "{seo_topic}".
+Write a 1200-word SEO blog on: "{seo_topic}"
 
 RULES:
-- NO markdown (*, #, **).
+- NO markdown (*, #, **)
 - Use ONLY:
   H1: Title
   H2: Section Title
   H3: Subsection Title
-- Must contain line: "{extra_line}" in first 100 words.
+- First 100 words MUST contain: "{extra_line}"
 
-Return EXACT structured output:
+Return EXACT format:
 
 Focus Keyphrase:
 (text)
@@ -144,10 +171,11 @@ H1:
 (text)
 
 Full Blog Content:
-(full article using H1:, H2:, H3:)
+(full article with H1:, H2:, H3:)
 """
 
     with st.spinner("Generating SEO Article…"):
+
         response = client.models.generate_content(
             model="gemini-2.0-flash",
             contents=prompt
@@ -176,31 +204,34 @@ Full Blog Content:
                 except StopIteration:
                     sections[key] = part.strip()
 
-        # HTML Conversion
+        # ----------------------------------------
+        # HTML FORMATTING
+        # ----------------------------------------
+
         content_html = sections["Full Blog Content"]
 
-        # H1 Default Black
+        # H1 black
         content_html = re.sub(r"H1:\s*(.+)", r"<h1 style='color:black;'>\1</h1>", content_html)
 
-        # H2 Red
+        # H2 red
         content_html = re.sub(r"H2:\s*(.+)", r"<h2 style='color:red;'>\1</h2>", content_html)
 
-        # H3 Blue
+        # H3 blue
         content_html = re.sub(r"H3:\s*(.+)", r"<h3 style='color:blue;'>\1</h3>", content_html)
 
-        # External Links
-        wiki_link = f"https://en.wikipedia.org/wiki/{seo_topic.replace(' ', '_')}"
-        links_html = f"""
+        # External links
+        wiki = f"https://en.wikipedia.org/wiki/{seo_topic.replace(' ', '_')}"
+        links = f"""
 <br><br>
 <h3 style='color:blue;'>External References</h3>
-<p>My Website: <a href="{website_link}" target="_blank">{website_link}</a></p>
-<p>Wikipedia: <a href="{wiki_link}" target="_blank">{wiki_link}</a></p>
+<p><a href="{website_link}" target="_blank">{website_link}</a></p>
+<p><a href="{wiki}" target="_blank">{wiki}</a></p>
 """
-        content_html += links_html
+        content_html += links
 
-        # -------------------------------------------------------
+        # ----------------------------------------
         # SEO ANALYZER
-        # -------------------------------------------------------
+        # ----------------------------------------
         def analyze(text, keyphrase, title, desc):
             score = 100
             data = {}
@@ -211,7 +242,7 @@ Full Blog Content:
             if words < 900:
                 score -= 10
 
-            kd = (text.lower().count(keyphrase.lower()) / words) * 100 if words > 0 else 0
+            kd = (text.lower().count(keyphrase.lower()) / words) * 100 if words else 0
             data["Keyword Density %"] = round(kd, 2)
             if kd < 0.8 or kd > 3.5:
                 score -= 5
@@ -224,15 +255,15 @@ Full Blog Content:
             if len(desc) > 160:
                 score -= 5
 
-            passive_hits = len(re.findall(r"\bwas\b|\bwere\b|\bbeen\b", text.lower()))
-            passive_percent = (passive_hits / words) * 100 if words else 0
-            data["Passive Voice %"] = round(passive_percent, 2)
-            if passive_percent > 7:
+            passive = len(re.findall(r"\bwas\b|\bwere\b|\bbeen\b", text.lower()))
+            pv_percent = (passive / words) * 100 if words else 0
+            data["Passive Voice %"] = round(pv_percent, 2)
+            if pv_percent > 7:
                 score -= 5
 
             sentences = re.split(r"[.!?]", text)
-            s_lengths = [len(s.split()) for s in sentences if len(s.split())]
-            avg_len = sum(s_lengths) / len(s_lengths) if s_lengths else 0
+            lengths = [len(s.split()) for s in sentences if len(s.split())]
+            avg_len = sum(lengths) / len(lengths) if lengths else 0
             data["Average Sentence Length"] = round(avg_len, 2)
             if avg_len > 22:
                 score -= 5
@@ -247,10 +278,11 @@ Full Blog Content:
             sections["Meta Description"]
         )
 
-        # -------------------------------------------------------
+        # ----------------------------------------
         # SAVE POST
-        # -------------------------------------------------------
+        # ----------------------------------------
         post_id = sections["Slug"] or sections["H1"] or seo_topic
+
         post_data = {
             "keyphrase": sections["Focus Keyphrase"],
             "slug": sections["Slug"],
@@ -265,13 +297,13 @@ Full Blog Content:
 
         save_post(post_id, post_data)
 
-        # -------------------------------------------------------
-        # DISPLAY RESULT
-        # -------------------------------------------------------
+        # ----------------------------------------
+        # DISPLAY NEW CONTENT
+        # ----------------------------------------
         st.subheader("New SEO Article Generated")
 
         st.write("Focus Keyphrase:")
-        copy_box(sections["Focus Keyphrase"], "Keyphrase")
+        copy_box(sections["Focus Keyphrase"], "Focus Keyphrase")
 
         st.write("Slug:")
         copy_box(sections["Slug"], "Slug")
@@ -288,6 +320,6 @@ Full Blog Content:
         st.write("Full SEO Content:")
         st.markdown(content_html, unsafe_allow_html=True)
 
-        st.subheader("SEO Score")
+        st.subheader("SEO Score:")
         for k, v in seo_score.items():
             st.write(f"{k}: {v}")
