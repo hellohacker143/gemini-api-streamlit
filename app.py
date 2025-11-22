@@ -13,29 +13,19 @@ st.set_page_config(
 # ---------------------------------------------------
 # MAIN TITLE
 # ---------------------------------------------------
-st.title("📝 SEO-Optimized 1200-Word Blog Generator")
+st.title("SEO-Optimized 1200-Word Blog Generator")
 
-st.markdown("""
-Create **fully optimized, SEO-first 1200-word blog posts**
-with complete SEO elements in a clean two-panel layout.
-""")
-
+st.write(
+    "Create fully optimized, SEO-first 1200-word blog posts with complete SEO elements."
+)
 
 # ---------------------------------------------------
 # SIDEBAR — API KEY
 # ---------------------------------------------------
 with st.sidebar:
-    st.header("⚙️ Settings")
+    st.header("Settings")
     api_key = st.text_input("Enter Gemini API Key", type="password")
-    st.markdown("---")
-    st.write("✨ Generates:")
-    st.write("✔ Focus Keyphrase")
-    st.write("✔ SEO Slug")
-    st.write("✔ Meta Title & Description")
-    st.write("✔ Perfect H1")
-    st.write("✔ H2/H3 Structure")
-    st.write("✔ 1200-word SEO content")
-    st.write("⚡ Powered by Gemini 2.0 Flash")
+    st.write("Generates full SEO content + SEO metadata")
 
 if not api_key:
     st.warning("Please enter your Gemini API key to continue.")
@@ -49,22 +39,20 @@ else:
 left, right = st.columns([2.2, 1])
 
 
-# Copy button utility
+# Copy box
 def copy_box(text, key):
     st.code(text)
-    st.button(f"📋 Copy {key}", key=key)
+    st.button(f"Copy {key}", key=key)
 
 
 # ---------------------------------------------------
-# LEFT PANEL → SEO BLOG GENERATOR
+# LEFT PANEL → SEO GENERATOR
 # ---------------------------------------------------
-left.subheader("📰 SEO Blog Generator")
+left.subheader("SEO Blog Generator")
 
 seo_topic = left.text_input("Enter Blog Topic:")
-extra_line = left.text_input("Add required sentence inside first 100 words:")
-
-generate_blog = left.button("🚀 Generate SEO Blog")
-
+extra_line = left.text_input("Sentence required in first 100 words:")
+generate_blog = left.button("Generate SEO Blog")
 
 # ---------------------------------------------------
 # SEO GENERATION
@@ -72,38 +60,36 @@ generate_blog = left.button("🚀 Generate SEO Blog")
 if generate_blog and seo_topic:
 
     seo_prompt = f"""
-Write a 1200-word SEO-optimized blog post on the topic: "{seo_topic}".
+Write a 1200-word SEO-optimized blog article on the topic: "{seo_topic}".
 
 Include:
-
-1. Focus Keyphrase (exact match)
+1. Focus Keyphrase
 2. SEO-Friendly Slug
-3. Meta Title (max 60 characters)
-4. Meta Description (max 160 characters)
-5. Perfect H1
-6. H2 / H3 structure
+3. Meta Title (max 60 chars)
+4. Meta Description (max 160 chars)
+5. Perfect H1 (no markdown)
+6. H2 / H3 structure (no markdown)
 7. First 100 words must contain: "{extra_line}"
-8. Full 1200-word content
+8. Full 1200-word content in simple text only (NO **, NO ##, NO markdown)
+9. Return output in EXACTLY this format:
 
-Return output in EXACTLY this format:
-
-### Focus Keyphrase:
+Focus Keyphrase:
 (text)
 
-### Slug:
+Slug:
 (text)
 
-### Meta Title:
+Meta Title:
 (text)
 
-### Meta Description:
+Meta Description:
 (text)
 
-### H1:
+H1:
 (text)
 
-### Full Blog Content:
-(full content)
+Full Blog Content:
+(full content, no markdown)
 """
 
     with st.spinner("Generating SEO Blog…"):
@@ -114,6 +100,9 @@ Return output in EXACTLY this format:
             )
 
             raw = response.text
+
+            # Remove markdown symbols if any appear
+            raw = raw.replace("**", "").replace("#", "")
 
             # Split sections
             sections = {
@@ -126,28 +115,28 @@ Return output in EXACTLY this format:
             }
 
             for title in sections.keys():
-                marker = f"### {title}:"
+                marker = f"{title}:"
                 if marker in raw:
                     part = raw.split(marker)[1]
                     try:
                         next_marker = next(
                             m for m in sections.keys()
-                            if m != title and f"### {m}:" in part
+                            if m != title and f"{m}:" in part
                         )
-                        sections[title] = part.split(f"### {next_marker}:")[0].strip()
+                        sections[title] = part.split(f"{next_marker}:")[0].strip()
                     except StopIteration:
                         sections[title] = part.strip()
 
             # RIGHT PANEL – SEO ELEMENTS
-            right.subheader("📌 SEO Elements")
+            right.subheader("SEO Elements")
 
             for title, text in sections.items():
-                right.markdown(f"### 🔹 {title}")
+                right.write(title)
                 copy_box(text, title)
 
             # LEFT PANEL – FULL BLOG CONTENT
-            left.markdown("### 📰 Full SEO Blog")
-            left.markdown(sections["Full Blog Content"])
+            left.write("Full SEO Blog")
+            left.write(sections["Full Blog Content"])
 
         except Exception as e:
             left.error(f"Error generating blog: {e}")
