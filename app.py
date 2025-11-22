@@ -3,13 +3,12 @@ from google import genai
 import re
 import json
 import os
-from urllib.parse import quote
 
 # -------------------------------------------------------
 # PAGE SETUP
 # -------------------------------------------------------
-st.set_page_config(page_title="SEO Generator + Saved History", page_icon="📝", layout="wide")
-st.title("SEO Blog Generator + Analyzer + Saved Articles + New Tab Preview")
+st.set_page_config(page_title="SEO Generator + Humanize Mode", page_icon="📝", layout="wide")
+st.title("SEO Blog Generator + Analyzer + Saved Articles + Humanize Mode")
 
 
 # -------------------------------------------------------
@@ -56,7 +55,10 @@ def delete_post(post_id):
 # -------------------------------------------------------
 with st.sidebar:
     st.header("Settings")
-    api_key = st.text_input("Enter Gemini API Key", type="password")
+
+    # Your bypass GPT API key
+    api_key = st.text_input("Enter Gemini API Key", value="api_key_7283c200036946fa8a5af3cc016fc157", type="password")
+
     website_link = st.text_input("Your Website:", "https://yourwebsite.com")
 
     st.write("---")
@@ -120,15 +122,6 @@ if selected_post != "None":
     st.subheader("SEO Score:")
     for k, v in post["seo_score"].items():
         st.write(f"{k}: {v}")
-
-    st.subheader("Open Content in New Tab")
-    encoded = quote(post["html_content"])
-    preview_url = f"data:text/html;charset=utf-8,{encoded}"
-
-    st.markdown(
-        f"<a href='{preview_url}' target='_blank' style='font-size:20px; color:blue;'>CLICK HERE TO OPEN FULL ARTICLE IN NEW TAB</a>",
-        unsafe_allow_html=True
-    )
 
     st.stop()
 
@@ -224,15 +217,6 @@ Full Blog Content:
         html_content = re.sub(r"H2:\s*(.+)", r"<h2 style='color:red;'>\1</h2>", html_content)
         html_content = re.sub(r"H3:\s*(.+)", r"<h3 style='color:blue;'>\1</h3>", html_content)
 
-        # External Links
-        wiki = f"https://en.wikipedia.org/wiki/{seo_topic.replace(' ', '_')}"
-        html_content += f"""
-<br><br>
-<h3 style='color:blue;'>External References</h3>
-<p><a href="{website_link}" target="_blank">{website_link}</a></p>
-<p><a href="{wiki}" target="_blank">{wiki}</a></p>
-"""
-
         # -------------------------------------------------------
         # SEO ANALYZER
         # -------------------------------------------------------
@@ -301,7 +285,7 @@ Full Blog Content:
         })
 
         # -------------------------------------------------------
-        # DISPLAY NEW ARTICLE
+        # DISPLAY NEW ARTICLE (NO NEW TAB LINK)
         # -------------------------------------------------------
         st.subheader("Generated SEO Article")
 
@@ -336,14 +320,48 @@ Full Blog Content:
             st.write(f"{k}: {v}")
 
         # -------------------------------------------------------
-        # OPEN IN NEW TAB WITH FULL CONTENT
+        # HUMANIZE BUTTON
         # -------------------------------------------------------
-        st.subheader("Open Content in New Tab")
+        st.write("---")
+        st.subheader("Humanize / Bypass GPT Detection")
 
-        encoded = quote(html_content)
-        preview_url = f"data:text/html;charset=utf-8,{encoded}"
+        if st.button("Humanize Content"):
+            with st.spinner("Humanizing content…"):
+                human_prompt = f"""
+Rewrite the following article in a fully human, natural, undetectable style.
+Remove all AI patterns and make it sound like written by a real content writer.
+Keep same H1, H2, H3 structure.
 
-        st.markdown(
-            f"<a href='{preview_url}' target='_blank' style='font-size:20px; color:blue;'>CLICK HERE TO OPEN FULL ARTICLE IN NEW TAB</a>",
-            unsafe_allow_html=True
-    )
+CONTENT:
+{parts['Full Blog Content']}
+"""
+
+                human_response = client.models.generate_content(
+                    model="gemini-2.0-flash",
+                    contents=human_prompt
+                )
+
+                human_text = human_response.text.replace("*", "").replace("#", "")
+
+                # Update HTML
+                human_html = re.sub(r"H1:\s*(.+)", r"<h1 style='color:black;'>\1</h1>", human_text)
+                human_html = re.sub(r"H2:\s*(.+)", r"<h2 style='color:red;'>\1</h2>", human_text)
+                human_html = re.sub(r"H3:\s*(.+)", r"<h3 style='color:blue;'>\1</h3>", human_text)
+
+                st.subheader("Humanized Content")
+                st.markdown(human_html, unsafe_allow_html=True)
+
+                # Overwrite saved content
+                save_post(post_id, {
+                    "keyphrase": parts["Focus Keyphrase"],
+                    "slug": parts["Slug"],
+                    "meta_title": parts["Meta Title"],
+                    "meta_description": parts["Meta Description"],
+                    "h1": parts["H1"],
+                    "summary": parts["Summary"],
+                    "conclusion": parts["Conclusion"],
+                    "plain_content": human_text,
+                    "html_content": human_html,
+                    "seo_score": seo_score,
+                    "topic": seo_topic
+                })
