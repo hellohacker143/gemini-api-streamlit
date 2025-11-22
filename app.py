@@ -17,10 +17,8 @@ st.title("SEO Blog Generator + Analyzer + Saved Articles")
 SAVE_FOLDER = "saved_data"
 SAVE_FILE = f"{SAVE_FOLDER}/saved_posts.json"
 
-# Create folder if missing
 os.makedirs(SAVE_FOLDER, exist_ok=True)
 
-# Create JSON file if missing
 if not os.path.exists(SAVE_FILE):
     with open(SAVE_FILE, "w") as f:
         json.dump({}, f)
@@ -48,7 +46,7 @@ def save_post(post_id, data):
 
 
 # -------------------------------------------------------
-# DELETE SAVED POST
+# DELETE POST
 # -------------------------------------------------------
 def delete_post(post_id):
     saved = load_saved_posts()
@@ -59,13 +57,13 @@ def delete_post(post_id):
 
 
 # -------------------------------------------------------
-# SIDEBAR SETTINGS + SAVED POSTS LIST
+# SIDEBAR
 # -------------------------------------------------------
 with st.sidebar:
     st.header("Settings")
     api_key = st.text_input("Enter Gemini API Key", type="password")
 
-    website_link = st.text_input("Your Website:", "https://yourwebsite.com")
+    website_link = st.text_input("Your Website Link:", "https://yourwebsite.com")
 
     st.write("---")
     st.subheader("Saved SEO Posts")
@@ -92,12 +90,12 @@ def copy_box(text, label):
 
 
 # -------------------------------------------------------
-# SHOW OLD POST WHEN CLICKED
+# SHOW OLD POST PAGE
 # -------------------------------------------------------
 if selected_post != "None":
     post = saved_posts[selected_post]
 
-    st.subheader(f"Loaded Old Post: {selected_post}")
+    st.subheader(f"Loaded Old SEO Article: {selected_post}")
 
     st.write("Focus Keyphrase:")
     copy_box(post["keyphrase"], "Keyphrase")
@@ -111,6 +109,14 @@ if selected_post != "None":
     st.write("Meta Description:")
     copy_box(post["meta_description"], "Meta Description")
 
+    st.write("Summary:")
+    copy_box(post["summary"], "Summary")
+    st.markdown(f"<p>{post['summary']}</p>", unsafe_allow_html=True)
+
+    st.write("Conclusion:")
+    copy_box(post["conclusion"], "Conclusion")
+    st.markdown(f"<p>{post['conclusion']}</p>", unsafe_allow_html=True)
+
     st.write("H1:")
     st.markdown(f"<h1>{post['h1']}</h1>", unsafe_allow_html=True)
 
@@ -121,13 +127,37 @@ if selected_post != "None":
     for k, v in post["seo_score"].items():
         st.write(f"{k}: {v}")
 
+    # ---- OPEN IN EXTERNAL EDITOR ----
+    st.subheader("Open in Online Editor")
+
+    editor_url = st.selectbox(
+        "Select Editor:",
+        [
+            "https://editpad.org",
+            "https://anotepad.com",
+            "https://notepad.pw",
+            "https://pastebin.com",
+            "https://justnotepad.com",
+            "https://wordcounter.net",
+            "https://docs.google.com",
+            "https://notion.so",
+            "https://quillbot.com/editor"
+        ]
+    )
+
+    if st.button("Open in Editor"):
+        st.markdown(
+            f"<meta http-equiv='refresh' content='0; url={editor_url}'>",
+            unsafe_allow_html=True
+        )
+
     st.stop()
 
 
 # -------------------------------------------------------
-# SEO GENERATOR INPUTS (MAIN PAGE)
+# SEO GENERATOR INPUTS
 # -------------------------------------------------------
-seo_topic = st.text_input("Enter SEO Blog Topic:")
+seo_topic = st.text_input("Enter Blog Topic:")
 extra_line = st.text_input("Required line inside first 100 words:")
 generate = st.button("Generate SEO Article")
 
@@ -142,13 +172,13 @@ if generate and api_key and seo_topic:
     prompt = f"""
 Write a 1200-word SEO blog on: "{seo_topic}"
 
-STRICT RULES:
+RULES:
 - NO markdown (*, #, **)
 - Use ONLY:
   H1: Title
   H2: Section
   H3: Subsection
-- First 100 words MUST contain: "{extra_line}"
+- Must include: "{extra_line}" in first 100 words.
 
 Return EXACT structure:
 
@@ -167,11 +197,17 @@ Meta Description:
 H1:
 (text)
 
+Summary:
+(short summary)
+
+Conclusion:
+(short conclusion)
+
 Full Blog Content:
 (full article with H1:, H2:, H3:)
 """
 
-    with st.spinner("Generating SEO Article…"):
+    with st.spinner("Generating..."):
 
         response = client.models.generate_content(
             model="gemini-2.0-flash",
@@ -180,13 +216,15 @@ Full Blog Content:
 
         raw = response.text.replace("*", "").replace("#", "")
 
-        # Extract Sections
+        # Extract sections
         parts = {
             "Focus Keyphrase": "",
             "Slug": "",
             "Meta Title": "",
             "Meta Description": "",
             "H1": "",
+            "Summary": "",
+            "Conclusion": "",
             "Full Blog Content": ""
         }
 
@@ -201,33 +239,15 @@ Full Blog Content:
                 except StopIteration:
                     parts[key] = part.strip()
 
-        # HTML formatting
+        # HTML formatting for content
         html_content = parts["Full Blog Content"]
 
-        # H1 black
-        html_content = re.sub(
-            r"H1:\s*(.+)",
-            r"<h1 style='color:black;'>\1</h1>",
-            html_content
-        )
+        html_content = re.sub(r"H1:\s*(.+)", r"<h1 style='color:black;'>\1</h1>", html_content)
+        html_content = re.sub(r"H2:\s*(.+)", r"<h2 style='color:red;'>\1</h2>", html_content)
+        html_content = re.sub(r"H3:\s*(.+)", r"<h3 style='color:blue;'>\1</h3>", html_content)
 
-        # H2 red
-        html_content = re.sub(
-            r"H2:\s*(.+)",
-            r"<h2 style='color:red;'>\1</h2>",
-            html_content
-        )
-
-        # H3 blue
-        html_content = re.sub(
-            r"H3:\s*(.+)",
-            r"<h3 style='color:blue;'>\1</h3>",
-            html_content
-        )
-
-        # external links inside content
+        # Add external links
         wiki = f"https://en.wikipedia.org/wiki/{seo_topic.replace(' ', '_')}"
-
         html_content += f"""
 <br><br>
 <h3 style='color:blue;'>External References</h3>
@@ -244,7 +264,6 @@ Full Blog Content:
 
             words = len(text.split())
             d["Word Count"] = words
-
             if words < 900:
                 score -= 10
 
@@ -253,18 +272,16 @@ Full Blog Content:
             if kd < 0.8 or kd > 3.5:
                 score -= 5
 
-            mt_len = len(title)
-            d["Meta Title Length"] = mt_len
-            if mt_len > 60:
+            d["Meta Title Length"] = len(title)
+            if len(title) > 60:
                 score -= 5
 
-            md_len = len(desc)
-            d["Meta Description Length"] = md_len
-            if md_len > 160:
+            d["Meta Description Length"] = len(desc)
+            if len(desc) > 160:
                 score -= 5
 
-            pv = len(re.findall(r"\bwas\b|\bwere\b|\bbeen\b", text.lower()))
-            pv_percent = (pv / words) * 100 if words else 0
+            passive = len(re.findall(r"\bwas\b|\bwere\b|\bbeen\b", text.lower()))
+            pv_percent = (passive / words) * 100 if words else 0
             d["Passive Voice %"] = round(pv_percent, 2)
             if pv_percent > 7:
                 score -= 5
@@ -291,27 +308,27 @@ Full Blog Content:
         # -------------------------------------------------------
         post_id = parts["Slug"] or parts["H1"] or seo_topic
 
-        post_data = {
+        save_post(post_id, {
             "keyphrase": parts["Focus Keyphrase"],
             "slug": parts["Slug"],
             "meta_title": parts["Meta Title"],
             "meta_description": parts["Meta Description"],
             "h1": parts["H1"],
+            "summary": parts["Summary"],
+            "conclusion": parts["Conclusion"],
             "plain_content": parts["Full Blog Content"],
             "html_content": html_content,
             "seo_score": seo_score,
             "topic": seo_topic
-        }
-
-        save_post(post_id, post_data)
+        })
 
         # -------------------------------------------------------
-        # DISPLAY NEW CONTENT
+        # DISPLAY NEW POST ON SCREEN
         # -------------------------------------------------------
-        st.subheader("New SEO Article Generated")
+        st.subheader("Generated SEO Article")
 
         st.write("Focus Keyphrase:")
-        copy_box(parts["Focus Keyphrase"], "Focus Keyphrase")
+        copy_box(parts["Focus Keyphrase"], "Keyphrase")
 
         st.write("Slug:")
         copy_box(parts["Slug"], "Slug")
@@ -322,12 +339,46 @@ Full Blog Content:
         st.write("Meta Description:")
         copy_box(parts["Meta Description"], "Meta Description")
 
+        st.write("Summary:")
+        copy_box(parts["Summary"], "Summary")
+        st.markdown(f"<p>{parts['Summary']}</p>", unsafe_allow_html=True)
+
+        st.write("Conclusion:")
+        copy_box(parts["Conclusion"], "Conclusion")
+        st.markdown(f"<p>{parts['Conclusion']}</p>", unsafe_allow_html=True)
+
         st.write("H1:")
         st.markdown(f"<h1>{parts['H1']}</h1>", unsafe_allow_html=True)
 
-        st.write("Full SEO Content:")
+        st.write("Full Blog Content:")
         st.markdown(html_content, unsafe_allow_html=True)
 
         st.subheader("SEO Score:")
         for k, v in seo_score.items():
             st.write(f"{k}: {v}")
+
+        # ----------------------------------------
+        # OPEN IN EXTERNAL EDITOR
+        # ----------------------------------------
+        st.subheader("Open in Online Editor")
+
+        editor_url = st.selectbox(
+            "Select Editor:",
+            [
+                "https://editpad.org",
+                "https://anotepad.com",
+                "https://notepad.pw",
+                "https://pastebin.com",
+                "https://justnotepad.com",
+                "https://wordcounter.net",
+                "https://docs.google.com",
+                "https://notion.so",
+                "https://quillbot.com/editor"
+            ]
+        )
+
+        if st.button("Open in Editor"):
+            st.markdown(
+                f"<meta http-equiv='refresh' content='0; url={editor_url}'>",
+                unsafe_allow_html=True
+)
