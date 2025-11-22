@@ -4,9 +4,8 @@ import time
 
 # Your BypassGPT API key
 API_KEY = "api_key_7283c200036946fa8a5af3cc016fc157"
-
-GENERATE_URL = "https://api.bypassgpt.ai/generate"
-RETRIEVE_URL = "https://api.bypassgpt.ai/retrieve"
+GENERATE_URL = "https://www.bypassgpt.ai/api/bypassgpt/v1/generate"
+RETRIEVE_URL = "https://www.bypassgpt.ai/api/bypassgpt/v1/retrieval"
 
 st.title("BypassGPT Humanizer with Streamlit")
 
@@ -22,10 +21,8 @@ if st.button("Humanize Text"):
             "Content-Type": "application/json"
         }
         payload = {
-            "text": text,
-            "language": "en",
-            "bypass_mode": "standard"
-        }
+            "input": text,            "language": "en",
+            "model_type": "fast"        }
 
         # Step 1: Send text to generate humanization task
         response = requests.post(GENERATE_URL, json=payload, headers=headers)
