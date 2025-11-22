@@ -39,10 +39,18 @@ if not api_key:
 else:
     client = genai.Client(api_key=api_key)
 
+
 # ---------------------------------------------------
 # TWO-FRAME LAYOUT
 # ---------------------------------------------------
 left, right = st.columns([2.2, 1])
+
+
+# COPy BUTTON FUNCTION
+def copy_box(text, label):
+    st.code(text)
+    st.button(f"📋 Copy {label}", key=label)
+
 
 # ---------------------------------------------------
 # LEFT FRAME → SEO BLOG GENERATOR
@@ -50,85 +58,99 @@ left, right = st.columns([2.2, 1])
 left.subheader("📰 SEO-Optimized 1200-Word Blog Generator")
 
 seo_topic = left.text_input("Enter Blog Topic:")
-extra_line = left.text_input("Add a required sentence in first 100 words:")
+extra_line = left.text_input("Add required line for first 100 words:")
+
 generate_blog = left.button("🚀 Generate SEO Blog")
 
-# SEO Prompt
-seo_prompt = """
-Write a fully SEO-optimized blog post of 1200 words on the topic: "{TOPIC}"
-
-Include:
-✔️ Focus Keyphrase (exact match)
-✔️ SEO-Friendly Slug
-✔️ Meta Title (60 characters)
-✔️ Meta Description (160 characters)
-✔️ Perfect H1
-✔️ H2 and H3 structure
-✔️ First 100 words containing this line: "{EXTRA}"
-✔️ Clean, neat, SEO-first writing style
-✔️ Format in Markdown
-
-Return output in this JSON structure:
-{
- "keyphrase": "",
- "slug": "",
- "meta_title": "",
- "meta_description": "",
- "h1": "",
- "content": ""
-}
-"""
-
 # ---------------------------------------------------
-# RIGHT FRAME → SEO ELEMENT PANEL
-# ---------------------------------------------------
-right.subheader("📌 SEO Elements")
-
-def copy_btn(text, label):
-    right.code(text, language="")
-    right.button(f"📋 Copy {label}", key=label)
-
-# ---------------------------------------------------
-# GENERATE BLOG
+# SEO BLOG GENERATION
 # ---------------------------------------------------
 if generate_blog and seo_topic:
-    with st.spinner("Generating SEO-Optimized Blog…"):
-        final_prompt = seo_prompt.replace("{TOPIC}", seo_topic).replace("{EXTRA}", extra_line)
 
+    seo_prompt = f"""
+Write a 1200-word SEO-optimized blog post on the topic: "{seo_topic}".
+
+Include ALL SEO elements below:
+
+1. Focus Keyphrase (exact match)
+2. SEO-Friendly Slug
+3. Meta Title (max 60 chars)
+4. Meta Description (max 160 chars)
+5. Perfect H1
+6. H2 / H3 structure
+7. First 100 words must contain this line: "{extra_line}"
+8. Full 1200-word blog content
+
+Return output in this format:
+
+### Focus Keyphrase:
+(text)
+
+### Slug:
+(text)
+
+### Meta Title:
+(text)
+
+### Meta Description:
+(text)
+
+### H1:
+(text)
+
+### Full Blog Content:
+(full blog)
+"""
+
+    with st.spinner("Generating SEO Blog…"):
         try:
             response = client.models.generate_content(
                 model="gemini-2.0-flash",
-                contents=final_prompt
+                contents=seo_prompt
             )
 
-            import json
-            data = json.loads(response.text)
+            full_output = response.text
 
-            # SHOW OUTPUT IN RIGHT FRAME
-            right.markdown("### 🎯 Focus Keyphrase")
-            copy_btn(data["keyphrase"], "Keyphrase")
+            # Split sections safely (no JSON needed)
+            sections = {
+                "Focus Keyphrase": "",
+                "Slug": "",
+                "Meta Title": "",
+                "Meta Description": "",
+                "H1": "",
+                "Full Blog Content": ""
+            }
 
-            right.markdown("### 🔗 SEO-Friendly Slug")
-            copy_btn(data["slug"], "Slug")
+            for key in sections.keys():
+                marker = f"### {key}:"
+                if marker in full_output:
+                    part = full_output.split(marker)[1]
+                    try:
+                        next_marker = next(
+                            m for m in sections.keys()
+                            if m != key and f"### {m}:" in part
+                        )
+                        sections[key] = part.split(f"### {next_marker}:")[0].strip()
+                    except StopIteration:
+                        sections[key] = part.strip()
 
-            right.markdown("### 🏷️ Meta Title")
-            copy_btn(data["meta_title"], "Meta Title")
+            # RIGHT PANEL → SEO ELEMENTS
+            right.subheader("📌 SEO Elements")
 
-            right.markdown("### 📝 Meta Description")
-            copy_btn(data["meta_description"], "Meta Description")
+            for title, text in sections.items():
+                right.markdown(f"### 🔹 {title}")
+                copy_box(text, title)
 
-            right.markdown("### 🏆 H1 Tag")
-            copy_btn(data["h1"], "H1")
-
-            # FULL CONTENT IN LEFT PANEL
-            left.markdown("### 📰 Full 1200-Word SEO Blog")
-            left.markdown(data["content"])
+            # LEFT PANEL → FULL BLOG
+            left.markdown("### 📰 Full SEO Blog")
+            left.markdown(sections["Full Blog Content"])
 
         except Exception as e:
-            left.error(f"Error: {e}")
+            left.error(f"Error generating blog: {e}")
+
 
 # ---------------------------------------------------
-# 15-MARK ANSWER GENERATOR BELOW
+# 15-MARK ANSWER GENERATOR
 # ---------------------------------------------------
 st.markdown("---")
 st.header("📚 Grouped 15-Marks Answer Generator")
@@ -187,8 +209,8 @@ if generate_btn:
         for topic in topics:
             st.markdown(f"## 🔹 Topic: **{topic}**")
             with st.spinner(f"Generating {topic}..."):
-                final_prompt = exam_prompt_template.replace("{TOPIC}", topic)
                 try:
+                    final_prompt = exam_prompt_template.replace("{TOPIC}", topic)
                     response = client.models.generate_content(
                         model="gemini-2.0-flash",
                         contents=final_prompt
