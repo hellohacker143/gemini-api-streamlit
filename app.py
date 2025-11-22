@@ -1,14 +1,19 @@
 import streamlit as st
-from google import genai
+import google.generativeai as genai
 import re
 import json
 import os
 
+
 # -------------------------------------------------------
 # PAGE SETUP
 # -------------------------------------------------------
-st.set_page_config(page_title="SEO Generator + Humanize Mode", page_icon="📝", layout="wide")
-st.title("SEO Blog Generator + Analyzer + Saved Articles + Humanize Mode")
+st.set_page_config(
+    page_title="SEO Generator + Humanize",
+    page_icon="📝",
+    layout="wide"
+)
+st.title("SEO Blog Generator + Analyzer + Humanize Mode")
 
 
 # -------------------------------------------------------
@@ -24,9 +29,6 @@ if not os.path.exists(SAVE_FILE):
         json.dump({}, f)
 
 
-# -------------------------------------------------------
-# JSON LOAD / SAVE
-# -------------------------------------------------------
 def load_saved_posts():
     try:
         with open(SAVE_FILE, "r") as f:
@@ -51,13 +53,15 @@ def delete_post(post_id):
 
 
 # -------------------------------------------------------
-# SIDEBAR SETTINGS
+# SIDEBAR
 # -------------------------------------------------------
 with st.sidebar:
     st.header("Settings")
 
-    # Your bypass GPT API key
-    api_key = st.text_input("Enter Gemini API Key", value="api_key_7283c200036946fa8a5af3cc016fc157", type="password")
+    api_key = st.text_input(
+        "Enter Gemini API Key",
+        type="password"
+    )
 
     website_link = st.text_input("Your Website:", "https://yourwebsite.com")
 
@@ -78,7 +82,7 @@ with st.sidebar:
 
 
 # -------------------------------------------------------
-# COPY BUTTON
+# COPY BOX
 # -------------------------------------------------------
 def copy_box(text, label):
     st.code(text)
@@ -91,7 +95,7 @@ def copy_box(text, label):
 if selected_post != "None":
     post = saved_posts[selected_post]
 
-    st.subheader(f"Loaded Old SEO Article")
+    st.subheader("Loaded SEO Article")
 
     st.write("Focus Keyphrase:")
     copy_box(post["keyphrase"], "Keyphrase")
@@ -106,12 +110,10 @@ if selected_post != "None":
     copy_box(post["meta_description"], "Meta Description")
 
     st.write("Summary:")
-    copy_box(post["summary"], "Summary")
-    st.markdown(f"<p>{post['summary']}</p>", unsafe_allow_html=True)
+    st.markdown(post["summary"], unsafe_allow_html=True)
 
     st.write("Conclusion:")
-    copy_box(post["conclusion"], "Conclusion")
-    st.markdown(f"<p>{post['conclusion']}</p>", unsafe_allow_html=True)
+    st.markdown(post["conclusion"], unsafe_allow_html=True)
 
     st.write("H1:")
     st.markdown(f"<h1>{post['h1']}</h1>", unsafe_allow_html=True)
@@ -127,7 +129,7 @@ if selected_post != "None":
 
 
 # -------------------------------------------------------
-# SEO GENERATOR INPUTS
+# SEO INPUTS
 # -------------------------------------------------------
 seo_topic = st.text_input("Enter Blog Topic:")
 extra_line = st.text_input("Required line inside first 100 words:")
@@ -135,22 +137,23 @@ generate = st.button("Generate SEO Article")
 
 
 # -------------------------------------------------------
-# GENERATE NEW ARTICLE
+# GENERATE ARTICLE
 # -------------------------------------------------------
 if generate and api_key and seo_topic:
 
-    client = genai.Client(api_key=api_key)
+    genai.configure(api_key=api_key)
+    model = genai.GenerativeModel("gemini-1.5-flash")
 
     prompt = f"""
 Write a 1200-word SEO blog on: "{seo_topic}"
 
 RULES:
-- NO markdown (*, #, **)
-- Use ONLY:
-  H1: Title
-  H2: Section
-  H3: Subsection
-- Must include this line in first 100 words:
+- NO markdown (*, #)
+- Use ONLY headings like:
+  H1:
+  H2:
+  H3:
+- Must include this exact line within first 100 words:
   "{extra_line}"
 
 Return EXACT structure:
@@ -181,14 +184,10 @@ Full Blog Content:
 """
 
     with st.spinner("Generating Article…"):
-        response = client.models.generate_content(
-            model="gemini-2.0-flash",
-            contents=prompt
-        )
-
+        response = model.generate_content(prompt)
         raw = response.text.replace("*", "").replace("#", "")
 
-        # Extract Sections
+        # extract sections
         parts = {
             "Focus Keyphrase": "",
             "Slug": "",
@@ -205,17 +204,19 @@ Full Blog Content:
             if marker in raw:
                 try:
                     next_marker = next(
-                        x for x in parts.keys() if x != key and f"{x}:" in raw.split(marker)[1]
+                        x for x in parts.keys()
+                        if x != key and f"{x}:" in raw.split(marker)[1]
                     )
                     parts[key] = raw.split(marker)[1].split(f"{next_marker}:")[0].strip()
                 except StopIteration:
                     parts[key] = raw.split(marker)[1].strip()
 
-        # Convert to HTML
-        html_content = parts["Full Blog Content"]
-        html_content = re.sub(r"H1:\s*(.+)", r"<h1 style='color:black;'>\1</h1>", html_content)
-        html_content = re.sub(r"H2:\s*(.+)", r"<h2 style='color:red;'>\1</h2>", html_content)
-        html_content = re.sub(r"H3:\s*(.+)", r"<h3 style='color:blue;'>\1</h3>", html_content)
+        # convert to styled html
+        html = parts["Full Blog Content"]
+        html = re.sub(r"H1:\s*(.+)", r"<h1 style='color:black;'>\1</h1>", html)
+        html = re.sub(r"H2:\s*(.+)", r"<h2 style='color:red;'>\1</h2>", html)
+        html = re.sub(r"H3:\s*(.+)", r"<h3 style='color:blue;'>\1</h3>", html)
+
 
         # -------------------------------------------------------
         # SEO ANALYZER
@@ -229,17 +230,17 @@ Full Blog Content:
             if words < 900:
                 score -= 10
 
-            kd = (text.lower().count(keyphrase.lower()) / words) * 100 if words else 0
+            kd = (text.lower().count(keyphrase.lower())/words)*100 if words else 0
             d["Keyword Density %"] = round(kd, 2)
             if kd < 0.8 or kd > 3.5:
                 score -= 5
 
             d["Meta Title Length"] = len(title)
-            if len(title) > 60:
+            if d["Meta Title Length"] > 60:
                 score -= 5
 
             d["Meta Description Length"] = len(desc)
-            if len(desc) > 160:
+            if d["Meta Description Length"] > 160:
                 score -= 5
 
             passive = len(re.findall(r"\bwas\b|\bwere\b|\bbeen\b", text.lower()))
@@ -250,8 +251,8 @@ Full Blog Content:
 
             sentences = re.split(r"[.!?]", text)
             lens = [len(s.split()) for s in sentences if len(s.split())]
-            avg_len = sum(lens) / len(lens) if lens else 0
-            d["Average Sentence Length"] = round(avg_len, 2)
+            avg_len = sum(lens)/len(lens) if lens else 0
+            d["Avg Sentence Length"] = round(avg_len, 2)
             if avg_len > 22:
                 score -= 5
 
@@ -264,6 +265,7 @@ Full Blog Content:
             parts["Meta Title"],
             parts["Meta Description"]
         )
+
 
         # -------------------------------------------------------
         # SAVE POST
@@ -279,13 +281,14 @@ Full Blog Content:
             "summary": parts["Summary"],
             "conclusion": parts["Conclusion"],
             "plain_content": parts["Full Blog Content"],
-            "html_content": html_content,
+            "html_content": html,
             "seo_score": seo_score,
             "topic": seo_topic
         })
 
+
         # -------------------------------------------------------
-        # DISPLAY NEW ARTICLE (NO NEW TAB LINK)
+        # DISPLAY ARTICLE
         # -------------------------------------------------------
         st.subheader("Generated SEO Article")
 
@@ -302,48 +305,43 @@ Full Blog Content:
         copy_box(parts["Meta Description"], "Meta Description")
 
         st.write("Summary:")
-        copy_box(parts["Summary"], "Summary")
-        st.markdown(f"<p>{parts['Summary']}</p>", unsafe_allow_html=True)
+        st.markdown(parts["Summary"], unsafe_allow_html=True)
 
         st.write("Conclusion:")
-        copy_box(parts["Conclusion"], "Conclusion")
-        st.markdown(f"<p>{parts['Conclusion']}</p>", unsafe_allow_html=True)
+        st.markdown(parts["Conclusion"], unsafe_allow_html=True)
 
         st.write("H1:")
         st.markdown(f"<h1>{parts['H1']}</h1>", unsafe_allow_html=True)
 
         st.write("Full Blog Content:")
-        st.markdown(html_content, unsafe_allow_html=True)
+        st.markdown(html, unsafe_allow_html=True)
 
         st.subheader("SEO Score:")
         for k, v in seo_score.items():
             st.write(f"{k}: {v}")
 
+
         # -------------------------------------------------------
         # HUMANIZE BUTTON
         # -------------------------------------------------------
         st.write("---")
-        st.subheader("Humanize / Bypass GPT Detection")
+        st.subheader("Humanize (Bypass AI Detection)")
 
         if st.button("Humanize Content"):
             with st.spinner("Humanizing content…"):
+
                 human_prompt = f"""
-Rewrite the following article in a fully human, natural, undetectable style.
-Remove all AI patterns and make it sound like written by a real content writer.
-Keep same H1, H2, H3 structure.
+Rewrite the article below into fully natural, human-written style.
+Remove all AI patterns. Keep structure (H1, H2, H3).
 
 CONTENT:
-{parts['Full Blog Content']}
+{parts["Full Blog Content"]}
 """
 
-                human_response = client.models.generate_content(
-                    model="gemini-2.0-flash",
-                    contents=human_prompt
-                )
-
+                human_response = model.generate_content(human_prompt)
                 human_text = human_response.text.replace("*", "").replace("#", "")
 
-                # Update HTML
+                # convert to HTML
                 human_html = re.sub(r"H1:\s*(.+)", r"<h1 style='color:black;'>\1</h1>", human_text)
                 human_html = re.sub(r"H2:\s*(.+)", r"<h2 style='color:red;'>\1</h2>", human_text)
                 human_html = re.sub(r"H3:\s*(.+)", r"<h3 style='color:blue;'>\1</h3>", human_text)
@@ -351,7 +349,7 @@ CONTENT:
                 st.subheader("Humanized Content")
                 st.markdown(human_html, unsafe_allow_html=True)
 
-                # Overwrite saved content
+                # overwrite saved post
                 save_post(post_id, {
                     "keyphrase": parts["Focus Keyphrase"],
                     "slug": parts["Slug"],
